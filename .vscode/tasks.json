@@ -4,31 +4,52 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "App: clean, build",
+            "label": "CH592F: clean, build",
             "type": "shell",
             "group": "build",
-            "command": "make clean;make GCC_TOOLCHAIN=~/Downloads/Prog/wch/RISC-V_Embedded_GCC15/bin -j16",
+            "command": "cd ch592f && make clean && make GCC_TOOLCHAIN=~/Downloads/Prog/wch/RISC-V_Embedded_GCC15/bin -j16",
             "problemMatcher": []
         },
         {
-            "label": "App: clean, build, download-openocd",
+            "label": "CH592F: clean, build, download",
             "type": "shell",
             "group": "build",
-            "command": "make clean;make GCC_TOOLCHAIN=~/Downloads/Prog/wch/RISC-V_Embedded_GCC15/bin -j16;make flash-openocd",
+            "command": "cd ch592f && make clean && make GCC_TOOLCHAIN=~/Downloads/Prog/wch/RISC-V_Embedded_GCC15/bin -j16 && make flash",
             "problemMatcher": []
         },
         {
-            "label": "App: clean, build, download",
+            "label": "CH592F: clean, build, download-openocd",
             "type": "shell",
             "group": "build",
-            "command": "make clean;make GCC_TOOLCHAIN=~/Downloads/Prog/wch/RISC-V_Embedded_GCC15/bin -j16;make flash",
+            "command": "cd ch592f && make clean && make GCC_TOOLCHAIN=~/Downloads/Prog/wch/RISC-V_Embedded_GCC15/bin -j16 && make flash-openocd",
             "problemMatcher": []
         },
         {
-            "label": "App: flash",
+            "label": "CH592F: flash",
             "type": "shell",
             "group": "build",
-            "command": "make flash",
+            "command": "cd ch592f && make flash",
+            "problemMatcher": []
+        },
+        {
+            "label": "CH32L103: clean, build",
+            "type": "shell",
+            "group": "build",
+            "command": "cd ch32l103 && make clean && make TOOLCHAIN_BINDIR=~/Downloads/Prog/wch/RISC-V_Embedded_GCC15/bin/ -j16",
+            "problemMatcher": []
+        },
+        {
+            "label": "CH32L103: clean, build, download",
+            "type": "shell",
+            "group": "build",
+            "command": "cd ch32l103 && make clean && make TOOLCHAIN_BINDIR=~/Downloads/Prog/wch/RISC-V_Embedded_GCC15/bin/ -j16 && make flash",
+            "problemMatcher": []
+        },
+        {
+            "label": "CH32L103: flash",
+            "type": "shell",
+            "group": "build",
+            "command": "cd ch32l103 && make flash",
             "problemMatcher": []
         }
     ]
