@@ -28,28 +28,6 @@ table, and build/flash instructions:
 - [`ch32l103/README.md`](ch32l103/README.md)
 - [`ch592f/README.md`](ch592f/README.md)
 
-## Measured throughput (demo conditions)
-
-Sustained EP2 bulk-IN download of the synthetic 3 MB BMP file, verified
-byte-exact, USB full-speed device on a Linux/xHCI host:
-
-| Board    | Conditions                          | Sustained speed |
-|----------|-------------------------------------|-----------------|
-| CH592F   | libusb, 64 B - 64 KB read sizes     | ~230 KB/s       |
-| CH592F   | browser (WebUSB, 16 KB transferIn)  | ~240 KB/s       |
-| CH32L103 | to be measured (board not connected) | -             |
-
-Notes:
-
-- Both boards are full-speed USB devices, so the bus ceiling is the same;
-  the numbers reflect each chip's USB device peripheral and this demo's
-  driver path, not an MCU maximum.
-- For the CH592F, ~230 KB/s is what the single-buffered bulk endpoint plus
-  the per-packet interrupt round-trip sustains in this demo configuration.
-- Right after the host closes and re-opens the device, the first download
-  can run slower for one transfer (host-controller NAK backoff); later
-  downloads run at full speed again.
-
 ## Web page
 
 The browser-side control page is **not** part of this repository. It is
