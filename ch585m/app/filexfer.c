@@ -64,8 +64,13 @@ static uint32_t s_col;         /* 0 .. FILEXFER_IMG_WIDTH-1 */
 static uint32_t s_channel;     /* 0=Blue, 1=Green, 2=Red    */
 static uint32_t s_actualRow;   /* counts down from HEIGHT-1 */
 
-static uint8_t s_blueByCol[FILEXFER_IMG_WIDTH];
-static uint8_t s_greenByRow[FILEXFER_IMG_HEIGHT];
+/* Checkerboard: 8x8 black/white squares. Two precomputed rows (one
+ * starting black, one white), each 3*WIDTH bytes; every image row is a
+ * memcpy from one of them - generation cost drops from a per-byte LUT
+ * walk to one memcpy per 3 KB row. */
+#define SQ 8
+static uint8_t s_rowA[FILEXFER_IMG_WIDTH * 3];
+static uint8_t s_rowB[FILEXFER_IMG_WIDTH * 3];
 static uint8_t s_header[FILEXFER_BMP_HEADER_LEN];
 
 /* Builds the 54-byte BMP header into 'hdr'. */
@@ -125,28 +130,29 @@ static uint16_t GenerateChunk(uint8_t *buf, uint16_t maxlen)
 {
     uint32_t remain = FILEXFER_TOTAL_SIZE - s_genPos;
     uint16_t n = (remain < maxlen) ? (uint16_t)remain : maxlen;
-    uint16_t i;
-    uint32_t offset = s_genPos;
+    uint16_t i = 0;
 
-    for (i = 0; i < n; i++)
+    while (i < n)
     {
-        if (offset < FILEXFER_BMP_HEADER_LEN)
+        uint32_t pos = s_genPos + i;
+        if (pos < FILEXFER_BMP_HEADER_LEN)
         {
-            buf[i] = s_header[offset];
+            buf[i++] = s_header[pos];
+            continue;
         }
-        else
+        uint32_t pix = pos - FILEXFER_BMP_HEADER_LEN;
+        uint32_t row = pix / (FILEXFER_IMG_WIDTH * 3u);
+        uint32_t off = pix % (FILEXFER_IMG_WIDTH * 3u);
+        const uint8_t *src = ((row / SQ) & 1u) ? s_rowB : s_rowA;
+        uint16_t avail = (uint16_t)(FILEXFER_IMG_WIDTH * 3u - off);
+        if (avail > (uint16_t)(n - i))
         {
-            switch (s_channel)
-            {
-                case 0: buf[i] = s_blueByCol[s_col]; break;
-                case 1: buf[i] = s_greenByRow[s_actualRow]; break;
-                default: buf[i] = (uint8_t)((s_col + s_actualRow) & 0xFFu); break;
-            }
-            AdvancePixelState();
+            avail = (uint16_t)(n - i);
         }
-        offset++;
+        memcpy(&buf[i], &src[off], avail);
+        i += avail;
     }
-    s_genPos = offset;
+    s_genPos += n;
     return n;
 }
 
@@ -271,13 +277,11 @@ void FileXfer_Init(void)
 
     BuildBmpHeader(s_header);
 
-    for (i = 0; i < FILEXFER_IMG_WIDTH; i++)
+    for (i = 0; i < FILEXFER_IMG_WIDTH * 3u; i++)
     {
-        s_blueByCol[i] = (uint8_t)((i * 255u) / (FILEXFER_IMG_WIDTH - 1u));
-    }
-    for (i = 0; i < FILEXFER_IMG_HEIGHT; i++)
-    {
-        s_greenByRow[i] = (uint8_t)((i * 255u) / (FILEXFER_IMG_HEIGHT - 1u));
+        uint8_t c = (((((i / 3u) / SQ) & 1u) != 0u)) ? 0xFFu : 0x00u;
+        s_rowA[i] = c;
+        s_rowB[i] = (uint8_t)~c;
     }
 
     USBD_EP2_SetFillCallback(FileXfer_FillCallback);
