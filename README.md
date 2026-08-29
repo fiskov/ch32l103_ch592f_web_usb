@@ -11,8 +11,9 @@ one per MCU, speaking the **identical USB protocol** so a single web page
 - [`ch585m/`](ch585m) — WCH CH585M (RISC-V): the same WinUSB/WebUSB
   LED + file-transfer demo with a zero-copy high-speed USBHS bulk path
   (~1 MB/s, gradient image, byte-verified).
-- [`ch32v307/`](ch32v307) — WCH CH32V307 (RISC-V, QingKe V4F): USBHS
-  MSC (U-Disk) scaffold from the EVT example, board not connected yet.
+- [`ch32v307/`](ch32v307) — WCH CH32V307 (RISC-V, QingKe V4F): the same
+  WinUSB/WebUSB demo on the USBHS high-speed peripheral (~1 MB/s,
+  byte-verified; LED pin still TODO).
 
 Both devices:
 

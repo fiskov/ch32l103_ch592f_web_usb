@@ -23,6 +23,17 @@
 extern "C" {
 #endif
 
+#define USBD_DevEnumStatus USBHS_DevEnumStatus
+
+/* demo API surface - identical to the CH592F/CH585M stacks */
+#include <stdint.h>
+volatile extern uint8_t USBD_EP1_TxBusy;
+typedef uint16_t (*USBD_EP2_FillCallback)(const uint8_t **pptr, uint16_t maxlen);
+uint8_t USBD_EP1_SendData(const uint8_t *pbuf, uint8_t len);
+void    USBD_EP2_SetFillCallback(USBD_EP2_FillCallback cb);
+void    USBD_EP2_StartTransfer(void);
+void    USBD_Device_Init(void);
+
 /*******************************************************************************/
 /* Macro Definition */
 

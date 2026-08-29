@@ -10,7 +10,8 @@
 * microcontroller manufactured by Nanjing Qinheng Microelectronics.
 *******************************************************************************/
 #include "ch32v30x_usbhs_device.h"
-#include "SW_UDISK.h"
+#include "usb_desc.h"
+#include "usbd_winusb.h"
 /******************************************************************************/
 /* Variable Definition */
 /* test mode */
@@ -43,11 +44,22 @@ volatile uint16_t USBHS_DevMaxPackLen;
 volatile uint8_t  USBHS_DevSpeed;
 volatile uint8_t  USBHS_DevSleepStatus;
 volatile uint8_t  USBHS_DevEnumStatus;
+extern volatile uint8_t USBD_EP1_TxBusy; /* demo shim (bottom of file) */
 
 /* Endpoint Buffer */
 __attribute__ ((aligned(4))) uint8_t USBHS_EP0_Buf[ DEF_USBD_UEP0_SIZE ];
-__attribute__ ((aligned(4))) uint8_t UDisk_In_Buf[ DEF_UDISK_PACK_512 ];
-__attribute__ ((aligned(4))) uint8_t UDisk_Out_Buf[ DEF_UDISK_PACK_512 ];
+__attribute__ ((aligned(4))) uint8_t USBHS_EP2_Tx_Buf[ 512 ];
+__attribute__ ((aligned(4))) uint8_t USBHS_EP1_Tx_Buf[ 64 ];
+
+/* MSC-era symbols still referenced by untouched EVT paths; never triggered */
+uint8_t UDisk_Out_Buf[ 512 ];
+volatile uint8_t Udisk_Sense_Key, Udisk_Sense_ASC, Udisk_CSW_Status, Udisk_Transfer_Status; volatile uint8_t Udisk_Pack_Size = 0;
+volatile uint32_t UDISK_Transfer_DataLen;
+__attribute__ ((aligned(4))) uint8_t TAB_USB_HS_OSC_DESC[ 64 ];
+__attribute__ ((aligned(4))) uint8_t TAB_USB_FS_OSC_DESC[ 64 ];
+void UDISK_In_EP_Deal(void) {}
+void UDISK_Out_EP_Deal(uint8_t *p, uint16_t l) { (void)p; (void)l; }
+void UDISK_Up_CSW(void) {}
 
 
 /* Endpoint tx busy flag */
@@ -131,29 +143,24 @@ void USBHS_RCC_Init( void )
  */
 void USBHS_Device_Endp_Init ( void )
 {
+    USBHSD->ENDP_CONFIG = USBHS_UEP0_T_EN | USBHS_UEP0_R_EN | USBHS_UEP1_T_EN | USBHS_UEP2_T_EN;
 
-	USBHSD->ENDP_CONFIG = USBHS_UEP0_T_EN | USBHS_UEP0_R_EN | USBHS_UEP2_T_EN | USBHS_UEP3_R_EN;
-	
     USBHSD->UEP0_MAX_LEN  = DEF_USBD_UEP0_SIZE;
-	USBHSD->UEP2_MAX_LEN  = DEF_USB_EP2_HS_SIZE;
-    USBHSD->UEP3_MAX_LEN  = DEF_USB_EP3_HS_SIZE;
+    USBHSD->UEP1_MAX_LEN  = DEF_USBD_UEP1_SIZE;
+    USBHSD->UEP2_MAX_LEN  = DEF_USBD_UEP2_SIZE;
 
     USBHSD->UEP0_DMA    = (uint32_t)(uint8_t *)USBHS_EP0_Buf;
-	USBHSD->UEP2_TX_DMA = (uint32_t)(uint8_t *)UDisk_In_Buf;
-    USBHSD->UEP3_RX_DMA = (uint32_t)(uint8_t *)UDisk_Out_Buf;
+    USBHSD->UEP1_TX_DMA = (uint32_t)(uint8_t *)USBHS_EP1_Tx_Buf;
+    USBHSD->UEP2_TX_DMA = (uint32_t)(uint8_t *)USBHS_EP2_Tx_Buf;
 
     USBHSD->UEP0_TX_LEN  = 0;
     USBHSD->UEP0_TX_CTRL = USBHS_UEP_T_RES_NAK;
     USBHSD->UEP0_RX_CTRL = USBHS_UEP_R_RES_ACK;
-	
+    USBHSD->UEP1_TX_LEN  = 0;
+    USBHSD->UEP1_TX_CTRL = USBHS_UEP_T_RES_NAK;
     USBHSD->UEP2_TX_LEN  = 0;
     USBHSD->UEP2_TX_CTRL = USBHS_UEP_T_RES_NAK;
-	
-    USBHSD->UEP3_RX_CTRL = USBHS_UEP_R_RES_ACK;
 
-
-
-    /* Clear End-points Busy Status */
     for(uint8_t i=0; i<DEF_UEP_NUM; i++ )
     {
         USBHS_Endp_Busy[ i ] = 0;
@@ -329,7 +336,14 @@ void USBHS_IRQHandler( void )
                         }
                         if ( ( USBHS_SetupReqType & USB_REQ_TYP_MASK ) != USB_REQ_TYP_STANDARD )
                         {
-                            /* Non-standard request endpoint 0 Data upload */
+                            /* continue multi-packet vendor IN */
+                            len = USBHS_SetupReqLen >= DEF_USBD_UEP0_SIZE ? DEF_USBD_UEP0_SIZE : USBHS_SetupReqLen;
+                            memcpy( USBHS_EP0_Buf, pUSBHS_Descr, len );
+                            USBHS_SetupReqLen -= len;
+                            pUSBHS_Descr += len;
+                            USBHSD->UEP0_TX_LEN = len;
+                            USBHSD->UEP0_TX_CTRL ^= USBHS_UEP_T_TOG_DATA1;
+                            USBHSD->UEP0_TX_CTRL = ( USBHSD->UEP0_TX_CTRL & ~USBHS_UEP_T_RES_MASK ) | USBHS_UEP_T_RES_ACK;
                         }
                         else
                         {
@@ -362,12 +376,19 @@ void USBHS_IRQHandler( void )
                         }
                         break;
 
-                    /* end-point 1 data in interrupt */
+                    case USBHS_UIS_TOKEN_IN | DEF_UEP1:
+                        USBHSD->UEP1_TX_CTRL = (USBHSD->UEP1_TX_CTRL & ~USBHS_UEP_T_RES_MASK) | USBHS_UEP_T_RES_NAK;
+                        USBHSD->UEP1_TX_CTRL ^= USBHS_UEP_T_TOG_DATA1;
+                        USBHS_Endp_Busy[ DEF_UEP1 ] &= ~DEF_UEP_BUSY;
+                        USBD_EP1_TxBusy = 0;
+                        break;
+
+                    /* end-point 2 data in interrupt */
                     case USBHS_UIS_TOKEN_IN | DEF_UEP2:
                         USBHSD->UEP2_TX_CTRL = (USBHSD->UEP2_TX_CTRL & ~USBHS_UEP_T_RES_MASK) | USBHS_UEP_T_RES_NAK;
                         USBHSD->UEP2_TX_CTRL ^= USBHS_UEP_T_TOG_DATA1;
                         USBHS_Endp_Busy[ DEF_UEP2 ] &= ~DEF_UEP_BUSY;
-						UDISK_In_EP_Deal();
+						USBD_EP2_StartTransfer(); /* refill (zero-copy) */
                         break;
 
                     default :
@@ -446,22 +467,26 @@ void USBHS_IRQHandler( void )
         if ( ( USBHS_SetupReqType & USB_REQ_TYP_MASK ) != USB_REQ_TYP_STANDARD )
         {
             /* usb non-standard request processing */
-            if (( USBHS_SetupReqType & USB_REQ_TYP_MASK ) == USB_REQ_TYP_CLASS)
+            if (( USBHS_SetupReqType & USB_REQ_TYP_MASK ) == USB_REQ_TYP_VENDOR)
             {
-               if (USBHS_SetupReqCode == CMD_UDISK_GET_MAX_LUN)
+               const uint8_t *pResp = NULL;
+               uint16_t respLen = 0;
+               uint8_t vres = WinUSB_ProcessVendorRequest( USBHS_SetupReqCode,
+                   USBHS_SetupReqValue, USBHS_SetupReqIndex, USBHS_SetupReqLen, &pResp, &respLen );
+               if( vres == WINUSB_REQ_HANDLED_DATA )
                {
-                   USBHS_EP0_Buf[0] = 0;
-                   pUSBHS_Descr = (uint8_t*)USBHS_EP0_Buf;
-                   len = 1;
+                   if( USBHS_SetupReqLen > respLen )
+                   {
+                       USBHS_SetupReqLen = respLen;
+                   }
+                   pUSBHS_Descr = ( uint8_t * )pResp;
+                   len = ( USBHS_SetupReqLen >= DEF_USBD_UEP0_SIZE ) ? DEF_USBD_UEP0_SIZE : USBHS_SetupReqLen;
+                   memcpy( USBHS_EP0_Buf, pUSBHS_Descr, len );
+                   pUSBHS_Descr += len;
                }
-               else if (USBHS_SetupReqCode == CMD_UDISK_RESET)
+               else if( vres == WINUSB_REQ_HANDLED_ACK )
                {
-                   /* UDisk Reset */
-                   Udisk_Sense_Key = 0x00;
-                   Udisk_Sense_ASC = 0x00;
-                   Udisk_CSW_Status = 0x00;
-                   Udisk_Transfer_Status = 0x00;
-                   UDISK_Transfer_DataLen = 0x00;
+                   USBHS_SetupReqLen = 0;
                }
                else
                {
@@ -496,14 +521,14 @@ void USBHS_IRQHandler( void )
                                 /* High speed mode */
                                 USBHS_DevSpeed = USBHS_SPEED_HIGH;
                                 USBHS_DevMaxPackLen = DEF_USBD_HS_PACK_SIZE;
-                                UDISK_Pack_Size = DEF_UDISK_PACK_512;
+                                Udisk_Pack_Size = 512;
                             }
                             else
                             {
                                 /* Full speed mode */
                                 USBHS_DevSpeed = USBHS_SPEED_FULL;
                                 USBHS_DevMaxPackLen = DEF_USBD_FS_PACK_SIZE;
-                                UDISK_Pack_Size = DEF_UDISK_PACK_64;
+                                Udisk_Pack_Size = 64;
                             }
 
                             /* Load usb configuration descriptor by speed */
@@ -557,8 +582,8 @@ void USBHS_IRQHandler( void )
 
                         /* get usb device qualify descriptor */
                         case USB_DESCR_TYP_QUALIF:
-                            pUSBHS_Descr = MyQuaDesc;
-                            len = DEF_USBD_QUALFY_DESC_LEN;
+                            pUSBHS_Descr = MyQuaDescr;
+                            len = 10u;
                             break;
 
                         /* get usb BOS descriptor */
@@ -652,7 +677,7 @@ void USBHS_IRQHandler( void )
                                     /* Set End-point 2 IN NAK */
                                     USBHSD->UEP2_TX_CTRL = USBHS_UEP_T_RES_NAK;
                                     /* upload CSW */
-                                    if( Udisk_Transfer_Status & DEF_UDISK_CSW_UP_FLAG )
+                                    if( Udisk_Transfer_Status & 0x00 /* CSW flag unused */ )
                                     {
                                         UDISK_Up_CSW( );
                                     }
@@ -662,7 +687,7 @@ void USBHS_IRQHandler( void )
                                     /* Set End-point 3 OUT ACK */
                                     USBHSD->UEP3_RX_CTRL = USBHS_UEP_R_RES_ACK;
                                     /* upload CSW */
-                                    if( Udisk_Transfer_Status & DEF_UDISK_CSW_UP_FLAG )
+                                    if( Udisk_Transfer_Status & 0x00 /* CSW flag unused */ )
                                     {
                                         UDISK_Up_CSW( );
                                     }
@@ -887,3 +912,45 @@ void USBHS_Send_Resume(void)
 {
 
 }
+
+
+/******************************************************************************/
+/* WinUSB/WebUSB demo API shims (same surface as the CH592F/CH585M stacks) */
+volatile uint8_t USBD_EP1_TxBusy = 0;
+static USBD_EP2_FillCallback s_ep2FillCb = NULL;
+
+uint8_t USBD_EP1_SendData( const uint8_t *pbuf, uint8_t len )
+{
+    if( USBD_EP1_TxBusy ) return 1;
+    if( ( USBHSD->ENDP_CONFIG & USBHSD_UEP_TX_EN( DEF_UEP1 ) ) == 0 ) return 1;
+    if( USBHS_Endp_Busy[ DEF_UEP1 ] & DEF_UEP_BUSY ) return 1;
+    memcpy( USBHS_EP1_Tx_Buf, pbuf, len );
+    USBHS_Endp_Busy[ DEF_UEP1 ] |= DEF_UEP_BUSY;
+    USBHSD->UEP1_TX_LEN = len;
+    USBHSD->UEP1_TX_CTRL = ( USBHSD->UEP1_TX_CTRL & ~USBHS_UEP_T_RES_MASK ) | USBHS_UEP_T_RES_ACK;
+    USBD_EP1_TxBusy = 1;
+    return 0;
+}
+
+void USBD_EP2_SetFillCallback( USBD_EP2_FillCallback cb ) { s_ep2FillCb = cb; }
+
+void USBD_EP2_StartTransfer( void )
+{
+    if( s_ep2FillCb == NULL ) return;
+    NVIC_DisableIRQ( USBHS_IRQn );
+    if( ( USBHS_Endp_Busy[ DEF_UEP2 ] & DEF_UEP_BUSY ) == 0 )
+    {
+        const uint8_t *p = NULL;
+        uint16_t n = s_ep2FillCb( &p, DEF_USBD_UEP2_SIZE );
+        if( ( n > 0 ) && ( p != NULL ) )
+        {
+            USBHS_Endp_Busy[ DEF_UEP2 ] |= DEF_UEP_BUSY;
+            USBHSD->UEP2_TX_DMA = (uint32_t)p;
+            USBHSD->UEP2_TX_LEN = n;
+            USBHSD->UEP2_TX_CTRL = ( USBHSD->UEP2_TX_CTRL & ~USBHS_UEP_T_RES_MASK ) | USBHS_UEP_T_RES_ACK;
+        }
+    }
+    NVIC_EnableIRQ( USBHS_IRQn );
+}
+
+void USBD_Device_Init( void ) { USBHS_RCC_Init(); USBHS_Device_Init( ENABLE ); }
