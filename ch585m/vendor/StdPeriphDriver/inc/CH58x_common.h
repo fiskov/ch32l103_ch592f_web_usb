@@ -68,7 +68,7 @@
   * @brief  系统主频时钟（Hz）
   */
 #ifndef  SYSCLK_FREQ
-#define  SYSCLK_FREQ    CLK_SOURCE_HSE_PLL_62_4MHz
+#define  SYSCLK_FREQ    CLK_SOURCE_HSE_PLL_78MHz
 #endif
 #ifndef	 FREQ_SYS
 #define  FREQ_SYS       62400000
