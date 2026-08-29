@@ -7,7 +7,7 @@
  *                       USB2 full-speed device peripheral - so host-side
  *                       throughput numbers are directly comparable.
  *
- *                       LED: PB23 (plain GPIO), button: PB22 (input pull-up),
+ *                       LED: PB23 (TMR0 hardware PWM), button: PB22 (input pull-up),
  *                       debug UART: UART0, TX on PB7, RX on PB4.
  *******************************************************************************/
 
@@ -36,7 +36,7 @@ int main(void)
     SetSysClock(SYSCLK_FREQ);
 
     DebugInit();
-    printf("\nWinUSB/WebUSB LED demo (CH585M, PB23 GPIO) v%u.%u.%u\n",
+    printf("\nWinUSB/WebUSB LED demo (CH585M, PB23 TMR0 PWM) v%u.%u.%u\n",
            FW_VERSION_MAJOR, FW_VERSION_MINOR, FW_VERSION_PATCH);
 
     LED_PWM_Init();

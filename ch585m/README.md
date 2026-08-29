@@ -13,9 +13,9 @@ Differences from the CH592F original:
   USBD; endpoint DMA registers are 32-bit here, and the USB pin enable
   lives in `R16_PIN_CONFIG` (`RB_PIN_USB_EN | RB_UDP_PU_EN`) instead of
   `R16_PIN_ANALOG_IE`).
-- LED on **PB23** as a plain GPIO (no hardware PWM channel needed for
-  this comparison port; brightness API is quantized: 0 = off, any other
-  value = fully on). Heartbeat blink until the first host `SET_LED`.
+- LED on **PB23** via the TMR0 hardware PWM channel (`RB_PIN_TMR0`
+  alternate mapping, same as on the CH592F): real 8-bit brightness,
+  ~58.6 kHz carrier. Heartbeat blink until the first host `SET_LED`.
 - Button on **PB22** (input with pull-up, unpopulated on this board so
   far - the EP1 interrupt-in path stays idle).
 - Debug UART: **UART0, TX on PB7, RX on PB4**, 115200.
