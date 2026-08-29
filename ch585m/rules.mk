@@ -44,7 +44,7 @@ ARCH_FLAGS	:= -march=rv32imcb_zmmul_zca_zba_zbb_zbc_zbs_xw -mabi=ilp32 \
 #  -g: system’s native format, -g0:off, -g/g1,-g2,-g3 -> more verbosely
 #  -ggdb: for gdb, -ggdb0:off, -ggdb/ggdb1,-ggdb2,-ggdb3 -> more verbosely
 #  -gdwarf: in DWARF format, -gdwarf-2,-gdwarf-3,-gdwarf-4,-gdwarf-5
-DEBUG_FLAGS ?= -g0 #-gdwarf-3
+DEBUG_FLAGS ?= -g -gdwarf-4
 
 # c flags
 OPT			?= -Os -Wextra # -Og
