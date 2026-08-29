@@ -54,13 +54,28 @@ static uint32_t s_col;         /* 0 .. FILEXFER_IMG_WIDTH-1 */
 static uint32_t s_channel;     /* 0=Blue, 1=Green, 2=Red    */
 static uint32_t s_actualRow;   /* counts down from HEIGHT-1 */
 
-/* Checkerboard: 8x8 black/white squares. Two precomputed rows (one
- * starting black, one white), each 3*WIDTH bytes; every image row is a
- * memcpy from one of them - generation cost drops from a per-byte LUT
- * walk to one memcpy per 3 KB row. */
-#define SQ 8
-static uint8_t s_rowA[FILEXFER_IMG_WIDTH * 3];
-static uint8_t s_rowB[FILEXFER_IMG_WIDTH * 3];
+/* Colorful gradient with zero-copy serving: four rotating row buffers;
+ * the pump generates rows a few ahead of the send position (cheap LUT
+ * walk per row) while the endpoint DMA reads finished rows directly. */
+#define ROW_BYTES   (FILEXFER_IMG_WIDTH * 3u)
+#define ROW_BUF_CNT 4u
+static uint8_t s_rows[ROW_BUF_CNT][ROW_BYTES];
+static uint8_t s_blueByCol[FILEXFER_IMG_WIDTH];
+static uint8_t s_greenByRow[FILEXFER_IMG_HEIGHT];
+static uint32_t s_genRow = 0;   /* rows fully generated: 0..HEIGHT */
+
+static void GenerateRow(uint32_t rowFromTop)
+{
+    uint8_t *dst = s_rows[rowFromTop % ROW_BUF_CNT];
+    uint8_t green = s_greenByRow[FILEXFER_IMG_HEIGHT - 1u - rowFromTop];
+    uint32_t col;
+    for (col = 0; col < FILEXFER_IMG_WIDTH; col++)
+    {
+        *dst++ = s_blueByCol[col];
+        *dst++ = green;
+        *dst++ = (uint8_t)(col + (FILEXFER_IMG_HEIGHT - 1u - rowFromTop));
+    }
+}
 static uint8_t s_header[FILEXFER_BMP_HEADER_LEN];
 
 /* Builds the 54-byte BMP header into 'hdr'. */
@@ -116,36 +131,6 @@ static inline void AdvancePixelState(void)
  * 'buf', advancing s_genPos and the pixel-walk state accordingly.
  * Returns the number of bytes written (0 only if s_genPos was already
  * at end-of-file when called). */
-static uint16_t GenerateChunk(uint8_t *buf, uint16_t maxlen)
-{
-    uint32_t remain = FILEXFER_TOTAL_SIZE - s_genPos;
-    uint16_t n = (remain < maxlen) ? (uint16_t)remain : maxlen;
-    uint16_t i = 0;
-
-    while (i < n)
-    {
-        uint32_t pos = s_genPos + i;
-        if (pos < FILEXFER_BMP_HEADER_LEN)
-        {
-            buf[i++] = s_header[pos];
-            continue;
-        }
-        uint32_t pix = pos - FILEXFER_BMP_HEADER_LEN;
-        uint32_t row = pix / (FILEXFER_IMG_WIDTH * 3u);
-        uint32_t off = pix % (FILEXFER_IMG_WIDTH * 3u);
-        const uint8_t *src = ((row / SQ) & 1u) ? s_rowB : s_rowA;
-        uint16_t avail = (uint16_t)(FILEXFER_IMG_WIDTH * 3u - off);
-        if (avail > (uint16_t)(n - i))
-        {
-            avail = (uint16_t)(n - i);
-        }
-        memcpy(&buf[i], &src[off], avail);
-        i += avail;
-    }
-    s_genPos += n;
-    return n;
-}
-
 /* Called from the idle main loop: fills the ring buffer with as many
  * freshly-generated packets as there is room for, then re-arms EP2 if the
  * ISR previously had to NAK on an empty ring. Cheap to call often - it's
@@ -156,8 +141,23 @@ void FileXfer_Pump(void)
     {
         s_startReq = 0;
         s_genPos = 0;
-        s_needArm = 1;
+        s_genRow = 0;
         s_active = 1;
+        while ((s_genRow < ROW_BUF_CNT - 1u) && (s_genRow < FILEXFER_IMG_HEIGHT))
+        {
+            GenerateRow(s_genRow++);
+        }
+        s_needArm = 1;
+    }
+
+    /* keep generating rows ahead of the send position */
+    if (s_active && (s_genPos > FILEXFER_BMP_HEADER_LEN))
+    {
+        uint32_t sendRow = (s_genPos - FILEXFER_BMP_HEADER_LEN) / ROW_BYTES;
+        while ((s_genRow < sendRow + ROW_BUF_CNT - 1u) && (s_genRow < FILEXFER_IMG_HEIGHT))
+        {
+            GenerateRow(s_genRow++);
+        }
     }
 
     if (s_active && (s_genPos >= FILEXFER_TOTAL_SIZE))
@@ -215,10 +215,10 @@ static uint16_t FileXfer_FillCallback(const uint8_t **pptr, uint16_t maxlen)
 
     {
         uint32_t pix = pos - FILEXFER_BMP_HEADER_LEN;
-        uint32_t rowLen = FILEXFER_IMG_WIDTH * 3u;
+        uint32_t rowLen = ROW_BYTES;
         uint32_t row = pix / rowLen;
         uint32_t off = pix % rowLen;
-        const uint8_t *src = ((row / SQ) & 1u) ? s_rowB : s_rowA;
+        const uint8_t *src = s_rows[row % ROW_BUF_CNT];
         uint32_t avail = rowLen - off;
         if (avail > remain)
         {
@@ -240,11 +240,13 @@ void FileXfer_Init(void)
 
     BuildBmpHeader(s_header);
 
-    for (i = 0; i < FILEXFER_IMG_WIDTH * 3u; i++)
+    for (i = 0; i < FILEXFER_IMG_WIDTH; i++)
     {
-        uint8_t c = (((((i / 3u) / SQ) & 1u) != 0u)) ? 0xFFu : 0x00u;
-        s_rowA[i] = c;
-        s_rowB[i] = (uint8_t)~c;
+        s_blueByCol[i] = (uint8_t)((i * 255u) / (FILEXFER_IMG_WIDTH - 1u));
+    }
+    for (i = 0; i < FILEXFER_IMG_HEIGHT; i++)
+    {
+        s_greenByRow[i] = (uint8_t)((i * 255u) / (FILEXFER_IMG_HEIGHT - 1u));
     }
 
     USBD_EP2_SetFillCallback(FileXfer_FillCallback);
