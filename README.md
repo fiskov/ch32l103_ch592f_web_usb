@@ -1,13 +1,17 @@
-# ch32l103_ch592f_web_usb
+# wch-usb-demos
 
-Two independent, self-contained WinUSB / WebUSB LED+button demo firmwares,
-one per MCU, speaking the **identical USB protocol** so a single web page
-(hosted separately, see below) can drive either board:
+WinUSB / WebUSB LED + file-transfer demo firmwares for several WCH RISC-V
+MCUs, all speaking the **identical USB protocol** (0x1209:0x0001) so a
+single web page can drive any board:
 
-- [`ch32l103/`](ch32l103) — WCH CH32L103 (RISC-V, QingKe V4C core).
-  LED on **PB8** (hardware TIM4_CH3 PWM), button on **PA1**.
-- [`ch592f/`](ch592f) — WCH CH592F (RISC-V). LED on **PB23** (TMR0
-  hardware PWM, remapped), button on **PB22** (the chip's BOOT pin).
+- [`ch32l103/`](ch32l103) — WCH CH32L103 (QingKe V4C). LED on PB8
+  (hardware TIM4_CH3 PWM), button on PA1.
+- [`ch592f/`](ch592f) — WCH CH592F. LED on PB23 (TMR0 hardware PWM,
+  remapped), button on PB22 (BOOT pin). Full-speed USB (~230 KB/s).
+- [`ch585m/`](ch585m) — WCH CH585M. LED on PA9 (TMR0 hardware PWM),
+  UART on PA14. USBHS high-speed, zero-copy (~1 MB/s byte-verified).
+- [`ch32v307/`](ch32v307) — WCH CH32V307 (QingKe V4F). LED pin TBD.
+  USBHS high-speed, zero-copy (~1 MB/s byte-verified).
 - [`ch585m/`](ch585m) — WCH CH585M (RISC-V): the same WinUSB/WebUSB
   LED + file-transfer demo with a zero-copy high-speed USBHS bulk path
   (~1 MB/s, gradient image, byte-verified).
