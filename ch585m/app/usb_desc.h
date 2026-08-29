@@ -66,7 +66,11 @@
 /******************************************************************************/
 /* external variables (raw descriptor tables), defined in usb_desc.c          */
 extern const uint8_t MyDevDescr[];
-extern const uint8_t MyCfgDescr[];
+extern const uint8_t MyCfgDescr_FS[];
+extern const uint8_t MyCfgDescr_HS[];
+extern const uint8_t MyQuaDescr[];
+#define DEF_USBD_CONFIG_FS_DESC_LEN DEF_USBD_CONFIG_DESC_LEN
+#define DEF_USBD_CONFIG_HS_DESC_LEN DEF_USBD_CONFIG_DESC_LEN
 extern const uint8_t MyLangDescr[];
 extern const uint8_t MyManuInfo[];
 extern const uint8_t MyProdInfo[];
@@ -77,7 +81,9 @@ extern const uint8_t MyWebUSBURLDescr[];
 
 /* Descriptor length helpers */
 #define DEF_USBD_DEVICE_DESC_LEN     ((uint8_t)MyDevDescr[0])
-#define DEF_USBD_CONFIG_DESC_LEN     ((uint16_t)MyCfgDescr[2] + (uint16_t)(MyCfgDescr[3] << 8))
+#define DEF_USBD_CONFIG_DESC_LEN     ((uint16_t)MyCfgDescr_FS[2] + (uint16_t)(MyCfgDescr_FS[3] << 8))
+#define DEF_USBD_HS_PACK_SIZE        512u
+#define DEF_USBD_FS_PACK_SIZE        64u
 #define DEF_USBD_LANG_DESC_LEN       ((uint16_t)MyLangDescr[0])
 #define DEF_USBD_MANU_DESC_LEN       ((uint16_t)MyManuInfo[0])
 #define DEF_USBD_PROD_DESC_LEN       ((uint16_t)MyProdInfo[0])

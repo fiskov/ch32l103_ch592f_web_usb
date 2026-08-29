@@ -27,7 +27,7 @@
 #include "led_pwm.h"
 #include "version.h"
 #include "systick.h"
-#include "shed.h"
+#include "sched.h"
 #include "button.h"
 #include "filexfer.h"
 
@@ -64,7 +64,7 @@ int main(void)
          * EP1. FileXfer_Pump() keeps the EP2 bulk-transfer packet ring
          * topped up in the background so the USB interrupt handler only
          * has to memcpy a pre-built packet, maximizing bulk throughput. */
-        shed_update(SysTick_Millis());
+        sched_update(SysTick_Millis());
         FileXfer_Pump();
     }
 }

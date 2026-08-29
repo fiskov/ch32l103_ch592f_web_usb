@@ -24,13 +24,13 @@
  *  multiple of 4 bytes (no padding needed for width=1024).
  *******************************************************************************/
 #include "filexfer.h"
-#include "ch585_usbd_device.h"
+#include "ch585_usbhs_device.h"
 #include <string.h>
 
 /* Ring buffer of pre-built packets. 32 slots * 64 bytes = 2KB, a small
  * fraction of the CH592F's RAM. Must be a power of two for cheap masking
  * instead of modulo. */
-#define RING_SLOTS   32u
+#define RING_SLOTS   16u  /* 16 x 512B = 8KB ring */
 #define RING_MASK    (RING_SLOTS - 1u)
 
 static uint8_t  s_ringData[RING_SLOTS][DEF_USBD_UEP2_SIZE];

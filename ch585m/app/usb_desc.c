@@ -62,7 +62,7 @@ const uint8_t MyDevDescr[] =
 /* two endpoints: EP1 IN (interrupt, button-press events) and EP2 IN (bulk, */
 /* synthetic file download for throughput testing). LED control still goes  */
 /* entirely over EP0 control transfers.                                     */
-const uint8_t MyCfgDescr[] =
+const uint8_t MyCfgDescr_FS [] =
 {
     /* Configuration Descriptor */
     0x09,                           // bLength
@@ -101,6 +101,62 @@ const uint8_t MyCfgDescr[] =
     DEF_USBD_UEP2_SIZE, 0x00,       // wMaxPacketSize
     0x00,                           // bInterval: N/A for bulk
 };
+
+/* High-speed configuration: identical layout, but the EP2 bulk endpoint
+ * uses the 512-byte high-speed maximum packet size. */
+const uint8_t MyCfgDescr_HS[] ={
+    /* Configuration Descriptor */
+    0x09,                           // bLength
+    0x02,                           // bDescriptorType (Configuration)
+    0x20, 0x00,                     // wTotalLength = 9 + 9 + 7 + 7 = 32
+    0x01,                           // bNumInterfaces
+    0x01,                           // bConfigurationValue
+    0x00,                           // iConfiguration
+    0x80,                           // bmAttributes (bus powered)
+    0x32,                           // bMaxPower = 100 mA
+
+    /* Interface Descriptor - vendor specific, two IN endpoints */
+    0x09,                           // bLength
+    0x04,                           // bDescriptorType (Interface)
+    0x00,                           // bInterfaceNumber
+    0x00,                           // bAlternateSetting
+    0x02,                           // bNumEndpoints
+    0xFF,                           // bInterfaceClass (vendor specific)
+    0xFF,                           // bInterfaceSubClass
+    0xFF,                           // bInterfaceProtocol
+    0x00,                           // iInterface
+
+    /* Endpoint Descriptor - EP1 IN, interrupt, button-press events */
+    0x07,                           // bLength
+    0x05,                           // bDescriptorType (Endpoint)
+    0x81,                           // bEndpointAddress: IN endpoint 1
+    0x03,                           // bmAttributes: Interrupt
+    DEF_USBD_UEP1_SIZE, 0x00,       // wMaxPacketSize
+    0x0A,                           // bInterval: 10ms polling
+
+    /* Endpoint Descriptor - EP2 IN, bulk, synthetic file download */
+    0x07,                           // bLength
+    0x05,                           // bDescriptorType (Endpoint)
+    0x82,                           // bEndpointAddress: IN endpoint 2
+    0x02,                           // bmAttributes: Bulk
+    0x00, 0x02,       // wMaxPacketSize
+    0x00,                           // bInterval: N/A for bulk
+};
+
+/* Device qualifier (required for high-speed operation). */
+const uint8_t MyQuaDescr[] =
+{
+    0x0A,                             // bLength
+    0x06,                             // bDescriptorType = DEVICE_QUALIFIER
+    0x10, 0x02,                       // bcdUSB = 0x0210 (matches MyDevDescr)
+    0x00,                             // bDeviceClass
+    0x00,                             // bDeviceSubClass
+    0x00,                             // bDeviceProtocol
+    DEF_USBD_UEP0_SIZE,               // bMaxPacketSize0
+    0x01,                             // bNumConfigurations
+    0x00                              // bReserved
+};
+
 
 /******************************************************************************/
 /* Language Descriptor (English - US) */

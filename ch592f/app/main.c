@@ -29,7 +29,7 @@
 #include "led_pwm.h"
 #include "version.h"
 #include "systick.h"
-#include "shed.h"
+#include "sched.h"
 #include "button.h"
 #include "filexfer.h"
 
@@ -64,7 +64,7 @@ int main(void)
     LED_PWM_Init();
     SysTick_InitMillis();
 
-    shed_add("ledblink", LED_PWM_HeartbeatTick, 500, 1);
+    sched_add("ledblink", LED_PWM_HeartbeatTick, 50, 1); /* 10 Hz toggle */
 
     USBD_Device_Init();
 
@@ -80,7 +80,7 @@ int main(void)
          * packet ring topped up in the background so the USB interrupt
          * handler only has to memcpy a pre-built packet, maximizing bulk
          * throughput. */
-        shed_update(SysTick_Millis());
+        sched_update(SysTick_Millis());
         FileXfer_Pump();
     }
 }

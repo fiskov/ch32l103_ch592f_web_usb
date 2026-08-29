@@ -12,12 +12,12 @@
  *******************************************************************************/
 
 #include "CH58x_common.h"
-#include "ch585_usbd_device.h"
+#include "ch585_usbhs_device.h"
 #include "usb_desc.h"
 #include "led_pwm.h"
 #include "version.h"
 #include "systick.h"
-#include "shed.h"
+#include "sched.h"
 #include "button.h"
 #include "filexfer.h"
 
@@ -41,7 +41,7 @@ int main(void)
 
     LED_PWM_Init();
     SysTick_InitMillis();
-    shed_add("ledblink", LED_PWM_HeartbeatTick, 500, 1);
+    sched_add("ledblink", LED_PWM_HeartbeatTick, 50, 1); /* 10 Hz toggle */
 
     USBD_Device_Init();
 
@@ -53,7 +53,7 @@ int main(void)
         /* All USB work happens in the USB interrupt handler; the scheduler
          * drives the LED heartbeat and the debounced button poll, and
          * FileXfer_Pump() keeps the EP2 bulk ring topped up. */
-        shed_update(SysTick_Millis());
+        sched_update(SysTick_Millis());
         FileXfer_Pump();
     }
 }

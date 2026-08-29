@@ -14,7 +14,7 @@
  *  for a mechanical button at a 5ms sampling interval.
  *******************************************************************************/
 #include "button.h"
-#include "shed.h"
+#include "sched.h"
 #include "systick.h"
 #include "ch32l103_usbfs_device.h"
 
@@ -90,7 +90,7 @@ void Button_Init(void)
     s_candidateState = s_stableState;
     s_candidateCount = 0;
 
-    shed_add(BUTTON_TASK_NAME, Button_PollTask, s_debounce_ms, 1 /* repeat */);
+    sched_add(BUTTON_TASK_NAME, Button_PollTask, s_debounce_ms, 1 /* repeat */);
 }
 
 void Button_SetDebounceMs(uint32_t debounce_ms)
@@ -100,8 +100,8 @@ void Button_SetDebounceMs(uint32_t debounce_ms)
         return;
     }
     s_debounce_ms = debounce_ms;
-    shed_remove(BUTTON_TASK_NAME);
-    shed_add(BUTTON_TASK_NAME, Button_PollTask, s_debounce_ms, 1 /* repeat */);
+    sched_remove(BUTTON_TASK_NAME);
+    sched_add(BUTTON_TASK_NAME, Button_PollTask, s_debounce_ms, 1 /* repeat */);
 }
 
 uint8_t Button_ReadRaw(void)
