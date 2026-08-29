@@ -1,97 +1,59 @@
 /********************************** (C) COPYRIGHT *******************************
  * File Name          : main.c
- * Author             : WCH
- * Version            : V1.0.0
- * Date               : 2024/07/31
- * Description        : Main program body.
- *********************************************************************************
- * Copyright (c) 2024 Nanjing Qinheng Microelectronics Co., Ltd.
- * Attention: This software (modified or not) and binary are used for
- * microcontroller manufactured by Nanjing Qinheng Microelectronics.
+ * Description        : WinUSB / WebUSB LED + file-transfer demo, CH585M port
+ *                       of ../../ch592f/app/main.c. Same USB descriptors,
+ *                       vendor protocol and ring-buffered EP2 bulk path as
+ *                       the CH32L103 and CH592F siblings, on the CH585's
+ *                       USB2 full-speed device peripheral - so host-side
+ *                       throughput numbers are directly comparable.
+ *
+ *                       LED: PB23 (plain GPIO), button: PB22 (input pull-up),
+ *                       debug UART: UART0, TX on PB7, RX on PB4.
  *******************************************************************************/
 
-/* @Note
- * UDisk Example:
- * This program provides examples of UDisk.Supports external SPI Flash and internal
- * Flash, selected by STORAGE_MEDIUM at SW_UDISK.h.
- *
- * If the USB is set to high-speed, an external crystal oscillator is recommended for the clock source.
- *  */
-
-#include <ch585_usbhs_device.h>
 #include "CH58x_common.h"
-#include "Internal_Flash.h"
-#include "SPI_FLASH.h"
-#include "SW_UDISK.h"
+#include "ch585_usbd_device.h"
+#include "usb_desc.h"
+#include "led_pwm.h"
+#include "version.h"
 #include "systick.h"
 #include "shed.h"
+#include "button.h"
+#include "filexfer.h"
 
-/*********************************************************************
- * @fn      DebugInit
- *
- * @brief   调试初始化
- *
- * @return  none
- */
-void DebugInit(void)
+/* UART0 debug output (TX: PB7, RX: PB4), matching the EVT MSC example's
+ * debug wiring on the CH585M demoboard. */
+static void DebugInit(void)
 {
-    /* UART0 debug: TX on PB7, RX on PB4. */
     GPIOB_SetBits(GPIO_Pin_7);
     GPIOB_ModeCfg(GPIO_Pin_4, GPIO_ModeIN_PU);
     GPIOB_ModeCfg(GPIO_Pin_7, GPIO_ModeOut_PP_5mA);
     UART0_DefInit();
 }
 
-/* On-board LED on PB17: toggled once per second from the scheduler as a
- * visible sign of life (plain GPIO blink, no PWM needed for MSC). */
-#define LED_PIN   GPIO_Pin_17
-
-static void LED_BlinkTask(void)
-{
-    GPIOB_InverseBits(LED_PIN);
-}
-
-/*********************************************************************
- * @fn      main
- *
- * @brief   Main program.
- *
- * @return  none
- */
 int main(void)
 {
     SetSysClock(SYSCLK_FREQ);
+
     DebugInit();
+    printf("\nWinUSB/WebUSB LED demo (CH585M, PB23 GPIO) v%u.%u.%u\n",
+           FW_VERSION_MAJOR, FW_VERSION_MINOR, FW_VERSION_PATCH);
 
-    GPIOB_SetBits(LED_PIN); /* LED idle high, blink starts after 500 ms */
-    GPIOB_ModeCfg(LED_PIN, GPIO_ModeOut_PP_5mA);
+    LED_PWM_Init();
     SysTick_InitMillis();
-    shed_add("ledblink", LED_BlinkTask, 500, 1 /* repeat */);
+    shed_add("ledblink", LED_PWM_HeartbeatTick, 500, 1);
 
-    PRINT("LED heartbeat: PB17\r\n");
+    USBD_Device_Init();
 
-#if (STORAGE_MEDIUM == MEDIUM_SPI_FLASH)
-    PRINT( "USBHS UDisk Demo\r\nStorage Medium: SPI FLASH \r\n" );
-    /* SPI flash init */
-    FLASH_Port_Init( );
-    /* FLASH ID check */
-    FLASH_IC_Check( );
-
-#elif (STORAGE_MEDIUM == MEDIUM_INTERAL_FLASH)
-    PRINT( "USBHS UDisk Demo\r\nStorage Medium: INTERNAL FLASH \r\n" );
-    Flash_Sector_Count = IFLASH_UDISK_SIZE  / DEF_UDISK_SECTOR_SIZE;
-    Flash_Sector_Size = DEF_UDISK_SECTOR_SIZE;
-#endif
-
-    /* Enable Udisk */
-    Udisk_Capability = Flash_Sector_Count;
-    Udisk_Status |= DEF_UDISK_EN_FLAG;
-
-    USBHS_Device_Init(ENABLE);
-    PFIC_EnableIRQ( USB2_DEVICE_IRQn );
+    Button_Init();
+    FileXfer_Init();
 
     while (1)
     {
+        /* All USB work happens in the USB interrupt handler; the scheduler
+         * drives the LED heartbeat and the debounced button poll, and
+         * FileXfer_Pump() keeps the EP2 bulk ring topped up. */
         shed_update(SysTick_Millis());
+        FileXfer_Pump();
     }
 }

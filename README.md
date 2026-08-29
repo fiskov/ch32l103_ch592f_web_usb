@@ -8,8 +8,9 @@ one per MCU, speaking the **identical USB protocol** so a single web page
   LED on **PB8** (hardware TIM4_CH3 PWM), button on **PA1**.
 - [`ch592f/`](ch592f) — WCH CH592F (RISC-V). LED on **PB23** (TMR0
   hardware PWM, remapped), button on **PB22** (the chip's BOOT pin).
-- [`ch585m/`](ch585m) — WCH CH585M (RISC-V) **USBHS mass-storage (U-Disk)
-  demo**, ported from the CH585 EVT; internal or SPI-flash backing store.
+- [`ch585m/`](ch585m) — WCH CH585M (RISC-V): the same WinUSB/WebUSB
+  LED + file-transfer demo on the CH585's USB2 full-speed peripheral,
+  for apples-to-apples throughput comparison with the boards above.
 
 Both devices:
 
