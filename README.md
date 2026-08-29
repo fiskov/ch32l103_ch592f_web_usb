@@ -9,8 +9,10 @@ one per MCU, speaking the **identical USB protocol** so a single web page
 - [`ch592f/`](ch592f) — WCH CH592F (RISC-V). LED on **PB23** (TMR0
   hardware PWM, remapped), button on **PB22** (the chip's BOOT pin).
 - [`ch585m/`](ch585m) — WCH CH585M (RISC-V): the same WinUSB/WebUSB
-  LED + file-transfer demo on the CH585's USB2 full-speed peripheral,
-  for apples-to-apples throughput comparison with the boards above.
+  LED + file-transfer demo with a zero-copy high-speed USBHS bulk path
+  (~1 MB/s, gradient image, byte-verified).
+- [`ch32v307/`](ch32v307) — WCH CH32V307 (RISC-V, QingKe V4F): USBHS
+  MSC (U-Disk) scaffold from the EVT example, board not connected yet.
 
 Both devices:
 
