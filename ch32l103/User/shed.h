@@ -17,7 +17,9 @@
 int shed_add(const char *name, void (*cb)(void), uint32_t period_ms, uint8_t is_repeat);
 
 /* Cancels the task previously scheduled under 'name'. Returns 0 if found
- * and removed, 1 if no matching task exists.                             */
+ * and removed, 1 if no matching task exists. Removal is lazy: the slot is
+ * reclaimed by the next shed_update(), and this is safe to call from
+ * inside a scheduler callback.                                           */
 int shed_remove(const char *name);
 
 /* Must be called periodically (e.g. once per main-loop iteration); runs
