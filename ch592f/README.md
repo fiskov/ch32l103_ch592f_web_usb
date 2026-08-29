@@ -28,6 +28,23 @@ that:
 - Streams a synthetic ~3 MB BMP image over EP2 bulk IN for USB
   bulk-transfer throughput/correctness testing.
 
+## Measured throughput (EP2 bulk IN)
+
+Measured on the bench: Linux host, direct USB connection, full 3 MB
+download with byte-exact verification on every run.
+
+| Case                                | Speed       |
+| ----------------------------------- | ----------- |
+| Sustained download                  | **~230 KB/s** (≈1.9 Mbit/s) |
+| Sustained, host read size 64 B…64 KB | same ~230 KB/s (host-chunk-size independent) |
+| First download right after a host re-open | can drop to ~44 KB/s (host-controller NAK backoff); every later download is full speed again |
+
+The sustained figure is the practical ceiling for this setup: a
+single-buffered full-speed bulk IN endpoint with a per-packet
+interrupt round-trip. Data correctness is independent of speed - the
+whole file verifies byte-for-byte, with clean short-packet
+termination.
+
 This is a CH592F port of the sibling [`../ch32l103`](../ch32l103) firmware:
 same USB descriptors/protocol/vendor-request numbering, same overall
 architecture (scheduler, systick, button debounce, file-transfer ring
