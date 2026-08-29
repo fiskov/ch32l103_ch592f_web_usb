@@ -62,9 +62,13 @@ void USBD_Device_Init(void)
 
     /* EP1: OUT+IN, used for button-press events (IN only used, OUT left
      * ACK/idle). EP2: OUT+IN, used for the bulk synthetic file download
-     * (only IN used). EP3/EP4 unused but still need valid DMA pointers. */
-    R8_UEP4_1_MOD = RB_UEP1_TX_EN;
-    R8_UEP2_3_MOD = RB_UEP2_TX_EN;
+     * (only IN used). EP3/EP4 unused but still need valid DMA pointers.
+     * RX_EN+TX_EN (not TX-only) is required: in the 1/1/0 buffer mode the
+     * IN buffer sits at UEPn_DMA+64, which is where this driver writes
+     * (pUSBD_EPn_IN_DataBuf); in TX-only mode the hardware would instead
+     * transmit from UEPn_DMA+0, i.e. the unused OUT buffer (all zeros). */
+    R8_UEP4_1_MOD = RB_UEP1_RX_EN | RB_UEP1_TX_EN;
+    R8_UEP2_3_MOD = RB_UEP2_RX_EN | RB_UEP2_TX_EN;
 
     R16_UEP0_DMA = (uint16_t)(uint32_t)s_EP0_Buf;
     R16_UEP1_DMA = (uint16_t)(uint32_t)s_EP1_Buf;
@@ -72,8 +76,13 @@ void USBD_Device_Init(void)
     R16_UEP3_DMA = (uint16_t)(uint32_t)s_EP3_Buf;
 
     R8_UEP0_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK;
-    R8_UEP1_CTRL = UEP_T_RES_NAK;
-    R8_UEP2_CTRL = UEP_T_RES_NAK;
+    /* EP1/EP2: hardware DATA0/1 auto-toggle - the hardware advances the PID
+     * only on successful (ACKed) transfers. Software toggling in the ISR
+     * desynced the PID on token-poll interrupts, causing the host to drop
+     * and retry most bulk packets (measured ~10 IRQs per delivered packet,
+     * throughput stuck at ~244 KB/s). */
+    R8_UEP1_CTRL = UEP_T_RES_NAK | RB_UEP_AUTO_TOG;
+    R8_UEP2_CTRL = UEP_T_RES_NAK | RB_UEP_AUTO_TOG;
 
     R8_USB_DEV_AD = 0x00;
     R8_USB_CTRL   = RB_UC_DEV_PU_EN | RB_UC_INT_BUSY | RB_UC_DMA_EN;
@@ -134,6 +143,17 @@ void USBD_EP2_StartTransfer(void)
         return;
     }
 
+    /* Keep fill+arm atomic w.r.t. the USB ISR (a completion interrupt in
+     * between also fills+arms, which would double-consume a ring packet).
+     * The NAK check inside the critical section makes this idempotent: if
+     * the endpoint is already armed/streaming there is nothing to do, so
+     * callers may invoke this redundantly as a self-heal path. */
+    PFIC_DisableIRQ(USB_IRQn);
+    if ((R8_UEP2_CTRL & MASK_UEP_T_RES) != UEP_T_RES_NAK)
+    {
+        PFIC_EnableIRQ(USB_IRQn);
+        return;
+    }
     len = s_ep2FillCb(pUSBD_EP2_IN_DataBuf, DEF_USBD_UEP2_SIZE);
     R8_UEP2_T_LEN = (uint8_t)len;
     if (len > 0)
@@ -144,6 +164,7 @@ void USBD_EP2_StartTransfer(void)
     {
         R8_UEP2_CTRL = (R8_UEP2_CTRL & ~MASK_UEP_T_RES) | UEP_T_RES_NAK;
     }
+    PFIC_EnableIRQ(USB_IRQn);
 }
 
 /*********************************************************************
@@ -220,18 +241,18 @@ void USB_IRQHandler(void)
                     break;
 
                 case UIS_TOKEN_IN | 1:
-                    /* Previous EP1 IN packet acknowledged by the host. */
+                    /* Previous EP1 IN packet acknowledged by the host.
+                     * PID toggle is handled by hardware (RB_UEP_AUTO_TOG). */
                     R8_UEP1_CTRL = (R8_UEP1_CTRL & ~MASK_UEP_T_RES) | UEP_T_RES_NAK;
-                    R8_UEP1_CTRL ^= RB_UEP_T_TOG;
                     USBD_EP1_TxBusy = 0;
                     break;
 
                 case UIS_TOKEN_IN | 2:
-                    /* Previous EP2 bulk IN packet ACKed - toggle DATA0/1
-                     * and immediately generate + arm the next packet so
-                     * the pipe stays full for maximum throughput. A short
-                     * packet (len < max size) signals end-of-transfer. */
-                    R8_UEP2_CTRL ^= RB_UEP_T_TOG;
+                    /* Previous EP2 bulk IN packet ACKed - immediately
+                     * generate + arm the next packet so the pipe stays
+                     * full for maximum throughput. A short packet (len <
+                     * max size) signals end-of-transfer. PID toggle is
+                     * handled by hardware (RB_UEP_AUTO_TOG). */
                     if (s_ep2FillCb != NULL)
                     {
                         uint16_t len2 = s_ep2FillCb(pUSBD_EP2_IN_DataBuf, DEF_USBD_UEP2_SIZE);
@@ -387,6 +408,16 @@ void USB_IRQHandler(void)
                     case USB_SET_CONFIGURATION:
                         USBD_DevConfig = (uint8_t)(pUSBD_SetupReqPak->wValue & 0xFF);
                         USBD_DevEnumStatus = 0x01;
+                        /* Per USB spec (and as xHCI enforces), SET_CONFIGURATION
+                         * resets every endpoint's DATA0/1 toggle on the host
+                         * side. Mirror that here: with RB_UEP_AUTO_TOG the
+                         * toggle bit only advances on successful transfers,
+                         * so a stale toggle after a re-SET_CONFIGURATION would
+                         * permanently PID-mismatch and the host would silently
+                         * discard all EP1/EP2 traffic (observed as downloads
+                         * hanging right after a browser/libusb re-open). */
+                        R8_UEP1_CTRL &= (uint8_t)~RB_UEP_T_TOG; /* back to DATA0 */
+                        R8_UEP2_CTRL &= (uint8_t)~RB_UEP_T_TOG;
                         break;
 
                     case USB_CLEAR_FEATURE:
@@ -405,6 +436,9 @@ void USB_IRQHandler(void)
                         break;
 
                     case USB_SET_INTERFACE:
+                        /* Same toggle-reset semantics as SET_CONFIGURATION. */
+                        R8_UEP1_CTRL &= (uint8_t)~RB_UEP_T_TOG;
+                        R8_UEP2_CTRL &= (uint8_t)~RB_UEP_T_TOG;
                         break;
 
                     case USB_GET_STATUS:
@@ -455,15 +489,39 @@ void USB_IRQHandler(void)
     }
     else if (intflag & RB_UIF_BUS_RST)
     {
-        USBD_DevConfig = 0;
-        USBD_DevAddr = 0;
-        USBD_DevSleepStatus = 0;
-        USBD_DevEnumStatus = 0;
-        USBD_EP1_TxBusy = 0;
-        R8_USB_DEV_AD = 0;
-        R8_UEP0_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK;
-        R8_UEP1_CTRL = UEP_T_RES_NAK;
-        R8_UEP2_CTRL = UEP_T_RES_NAK;
+        /* A real USB bus reset holds RB_UMS_BUS_RESET asserted for
+         * milliseconds; short SE0 glitches (observed a few times per second
+         * while the host idles between transfers) clear it again almost
+         * immediately. Acting on a glitch would wipe the enumeration state
+         * and the endpoints' DATA toggles mid-transfer, silently corrupting
+         * the stream - so only run the full reset path if the reset status
+         * is still asserted after ~20us. */
+        uint8_t real_reset = 0;
+        if (R8_USB_MIS_ST & RB_UMS_BUS_RESET)
+        {
+            volatile int32_t n = 1200; /* ~20us of re-checks at 60MHz */
+            while (n-- > 0)
+            {
+                if (!(R8_USB_MIS_ST & RB_UMS_BUS_RESET))
+                {
+                    break;
+                }
+            }
+            real_reset = (n < 0);
+        }
+
+        if (real_reset)
+        {
+            USBD_DevConfig = 0;
+            USBD_DevAddr = 0;
+            USBD_DevSleepStatus = 0;
+            USBD_DevEnumStatus = 0;
+            USBD_EP1_TxBusy = 0;
+            R8_USB_DEV_AD = 0;
+            R8_UEP0_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK;
+            R8_UEP1_CTRL = UEP_T_RES_NAK | RB_UEP_AUTO_TOG;
+            R8_UEP2_CTRL = UEP_T_RES_NAK | RB_UEP_AUTO_TOG;
+        }
         R8_USB_INT_FG = RB_UIF_BUS_RST;
     }
     else if (intflag & RB_UIF_SUSPEND)

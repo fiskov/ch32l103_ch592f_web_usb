@@ -63,6 +63,7 @@ int main(void)
 
     LED_PWM_Init();
     SysTick_InitMillis();
+
     shed_add("ledblink", LED_PWM_HeartbeatTick, 500, 1);
 
     USBD_Device_Init();

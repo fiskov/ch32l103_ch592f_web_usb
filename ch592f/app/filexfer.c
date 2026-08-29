@@ -38,12 +38,27 @@ static uint8_t  s_ringLen[RING_SLOTS];
 static volatile uint32_t s_ringHead = 0; /* producer: slots produced so far   */
 static volatile uint32_t s_ringTail = 0; /* consumer: slots consumed so far   */
 
-/* Pixel-walk generation position, shared between the producer
- * (FileXfer_Pump, main-loop context) and the rare ISR-context fallback
- * in FileXfer_FillCallback - safe without locks because it's a strict
- * single-producer/single-consumer sequence: the fallback path only ever
- * runs when the ring is empty (head==tail), i.e. exactly when the
- * "next byte to generate" position is unambiguous. */
+/* Set by the USB ISR when it had to NAK because the ring ran dry; the
+ * main-loop pump re-arms EP2 after refilling. Generation must NEVER happen
+ * in interrupt context: at transfer rates an in-ISR generator burns more
+ * CPU than the main loop has left, starving the pump so the ring stays
+ * empty forever - the device deadlocks itself at ~1/4 of the achievable
+ * throughput (measured 244 KB/s before this was enforced). */
+static volatile uint8_t s_needArm = 0;
+
+/* Set by the USB ISR (START_FILE_XFER, EP0 SETUP context) to request a
+ * restart; the main-loop pump performs the state reset + prefill + arm,
+ * keeping all generator/ring state single-threaded in main context. */
+static volatile uint8_t s_startReq = 0;
+
+
+/* True while a download should be streaming (set on START_FILE_XFER,
+ * cleared once the last byte has left the ring). Lets the pump's
+ * self-heal path distinguish "idle" from "stalled". */
+static volatile uint8_t s_active = 0;
+
+/* Pixel-walk generation position. Owned exclusively by FileXfer_Pump()
+ * (main-loop context): the ISR never generates, so no locking needed. */
 static uint32_t s_genPos;
 static uint32_t s_col;         /* 0 .. FILEXFER_IMG_WIDTH-1 */
 static uint32_t s_channel;     /* 0=Blue, 1=Green, 2=Red    */
@@ -136,10 +151,24 @@ static uint16_t GenerateChunk(uint8_t *buf, uint16_t maxlen)
 }
 
 /* Called from the idle main loop: fills the ring buffer with as many
- * freshly-generated packets as there is room for. Cheap to call often -
- * it's a no-op once the ring is full or the file is exhausted. */
+ * freshly-generated packets as there is room for, then re-arms EP2 if the
+ * ISR previously had to NAK on an empty ring. Cheap to call often - it's
+ * a no-op once the ring is full or the file is exhausted. */
 void FileXfer_Pump(void)
 {
+    if (s_startReq)
+    {
+        s_startReq = 0;
+        s_genPos    = 0;
+        s_col       = 0;
+        s_channel   = 0;
+        s_actualRow = FILEXFER_IMG_HEIGHT - 1u;
+        s_ringHead  = 0;
+        s_ringTail  = 0;
+        s_needArm   = 1; /* arm the first packet once the prefill below ran */
+        s_active    = 1;
+    }
+
     while ((s_ringHead - s_ringTail) < RING_SLOTS)
     {
         uint32_t idx;
@@ -155,13 +184,66 @@ void FileXfer_Pump(void)
         s_ringLen[idx] = (uint8_t)len;
         s_ringHead++;
     }
+
+    /* Transfer finished once the generator is exhausted and drained. */
+    if (s_active && (s_genPos >= FILEXFER_TOTAL_SIZE) && (s_ringHead == s_ringTail))
+    {
+        s_active = 0;
+    }
+
+    if (s_needArm && (s_ringHead != s_ringTail))
+    {
+        s_needArm = 0;
+        USBD_EP2_StartTransfer(); /* pulls one slot via the callback + arms */
+    }
+    else if (s_active)
+    {
+        /* Self-heal, part 1: if the fast path above ever misses (lost
+         * s_needArm), re-attempt the arm periodically.
+         * USBD_EP2_StartTransfer() is idempotent - it no-ops unless EP2 is
+         * currently NAKed. */
+        static uint32_t s_heal = 0;
+        if (++s_heal >= 1000u)
+        {
+            s_heal = 0;
+            USBD_EP2_StartTransfer();
+        }
+
+        /* Self-heal, part 2: data-toggle resync. If the host re-opens the
+         * device (browser reload, libusb close/open), the kernel resets its
+         * host-side DATA0/1 toggle WITHOUT any wire traffic, while ours
+         * keeps its value (RB_UC auto-toggle only advances on ACKed
+         * transfers). Every packet is then silently discarded and the
+         * transfer deadlocks with zero ring progress. Detect exactly that
+         * (transfer active + no ring progress for ~1s) and flip our toggle:
+         * the pending/next packet is then (re)sent with the now-matching
+         * PID. A false flip (host merely idle) self-corrects on the next
+         * interval, since the same detector flips back. */
+        static uint32_t s_stuck = 0;
+        static uint32_t s_lastTail = 0;
+        if (s_ringTail != s_lastTail)
+        {
+            s_lastTail = s_ringTail;
+            s_stuck = 0; /* packets are being delivered: healthy */
+        }
+        else if (++s_stuck >= 100000u)
+        {
+            s_stuck = 0;
+            R8_UEP2_CTRL ^= RB_UEP_T_TOG;
+            USBD_EP2_StartTransfer(); /* re-arm too, in case EP2 went NAK */
+        }
+    }
 }
 
 /* USB-interrupt-context callback: pops the next ready packet from the
- * ring (fast memcpy, no generation work) or, on a rare ring underrun,
- * falls back to generating it synchronously right here. */
+ * ring (fast memcpy only). If the ring is dry it returns 0, which NAKs
+ * the endpoint - the host retries while the main-loop pump refills and
+ * re-arms from FileXfer_Pump(). No generation happens here (see
+ * s_needArm). */
 static uint16_t FileXfer_FillCallback(uint8_t *buf, uint16_t maxlen)
 {
+    (void)maxlen;
+
     if (s_ringHead != s_ringTail)
     {
         uint32_t idx = s_ringTail & RING_MASK;
@@ -173,12 +255,12 @@ static uint16_t FileXfer_FillCallback(uint8_t *buf, uint16_t maxlen)
 
     if (s_genPos >= FILEXFER_TOTAL_SIZE)
     {
-        return 0; /* end of file */
+        return 0; /* end of file: stay NAKed */
     }
 
-    /* Ring underrun (e.g. right after FileXfer_Start()): generate this
-     * one packet directly so correctness never depends on pump timing. */
-    return GenerateChunk(buf, maxlen);
+    /* Ring underrun: NAK (return 0) and ask the pump to re-arm us. */
+    s_needArm = 1;
+    return 0;
 }
 
 void FileXfer_Init(void)
@@ -201,19 +283,7 @@ void FileXfer_Init(void)
 
 void FileXfer_Start(void)
 {
-    s_genPos    = 0;
-    s_col       = 0;
-    s_channel   = 0;
-    s_actualRow = FILEXFER_IMG_HEIGHT - 1u;
-    s_ringHead  = 0;
-    s_ringTail  = 0;
-
-    /* Pre-fill the ring before arming the first transfer, so even the
-     * very first packets benefit from the fast ISR path. */
-    FileXfer_Pump();
-
-    if (USBD_DevEnumStatus)
-    {
-        USBD_EP2_StartTransfer();
-    }
+    /* Called from EP0 SETUP (USB ISR) context: only record the request;
+     * FileXfer_Pump() in the main loop does the reset + prefill + arm. */
+    s_startReq = 1;
 }
