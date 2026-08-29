@@ -31,7 +31,8 @@ Differences from the CH592F original:
 | USBHS + 64 KB pre-generated repeating block (generator bypass experiment, pre in-flight guard) | ~534 KB/s | block check FAILED (arm race) |
 | USBHS + zero-copy DMA, 62.4 MHz system clock | ~327 KB/s | byte-exact |
 | USBHS + zero-copy DMA, 78 MHz system clock | ~330 KB/s | byte-exact (gradient) |
-| USBHS + zero-copy DMA + checkerboard generator (two precomputed rows) | ~935 KB/s | pattern-verified |
+| USBHS + checkerboard into ring slots (one memcpy per packet) | ~935 KB/s | pattern-verified |
+| USBHS + fully zero-copy (no ring; packets are pointers into the two static rows) | ~1029 KB/s | pattern-verified |
 
 The 62.4 -> 78 MHz jump (+25% CPU) moved throughput by ~1%: the cap is
 the per-packet interrupt round-trip, not clock or generator speed.

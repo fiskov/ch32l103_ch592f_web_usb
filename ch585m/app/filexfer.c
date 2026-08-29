@@ -27,16 +27,6 @@
 #include "ch585_usbhs_device.h"
 #include <string.h>
 
-/* Ring buffer of pre-built packets. 32 slots * 64 bytes = 2KB, a small
- * fraction of the CH592F's RAM. Must be a power of two for cheap masking
- * instead of modulo. */
-#define RING_SLOTS   16u  /* 16 x 512B = 8KB ring */
-#define RING_MASK    (RING_SLOTS - 1u)
-
-static uint8_t  s_ringData[RING_SLOTS][DEF_USBD_UEP2_SIZE];
-static uint8_t  s_ringLen[RING_SLOTS];
-static volatile uint32_t s_ringHead = 0; /* producer: slots produced so far   */
-static volatile uint32_t s_ringTail = 0; /* consumer: slots consumed so far   */
 
 /* Set by the USB ISR when it had to NAK because the ring ran dry; the
  * main-loop pump re-arms EP2 after refilling. Generation must NEVER happen
@@ -165,79 +155,34 @@ void FileXfer_Pump(void)
     if (s_startReq)
     {
         s_startReq = 0;
-        s_genPos    = 0;
-        s_col       = 0;
-        s_channel   = 0;
-        s_actualRow = FILEXFER_IMG_HEIGHT - 1u;
-        s_ringHead  = 0;
-        s_ringTail  = 0;
-        s_needArm   = 1; /* arm the first packet once the prefill below ran */
-        s_active    = 1;
+        s_genPos = 0;
+        s_needArm = 1;
+        s_active = 1;
     }
 
-    while ((s_ringHead - s_ringTail) < (RING_SLOTS - 1)) /* keep one slot of
-    * headroom: a slot handed to DMA stays unread until IN-complete */
-    {
-        uint32_t idx;
-        uint16_t len;
-
-        if (s_genPos >= FILEXFER_TOTAL_SIZE)
-        {
-            break;
-        }
-
-        idx = s_ringHead & RING_MASK;
-        len = GenerateChunk(s_ringData[idx], DEF_USBD_UEP2_SIZE);
-        s_ringLen[idx] = (uint8_t)len;
-        s_ringHead++;
-    }
-
-    /* Transfer finished once the generator is exhausted and drained. */
-    if (s_active && (s_genPos >= FILEXFER_TOTAL_SIZE) && (s_ringHead == s_ringTail))
+    if (s_active && (s_genPos >= FILEXFER_TOTAL_SIZE))
     {
         s_active = 0;
     }
 
-    if (s_needArm && (s_ringHead != s_ringTail))
+    if (s_needArm)
     {
         s_needArm = 0;
-        USBD_EP2_StartTransfer(); /* pulls one slot via the callback + arms */
+        USBD_EP2_StartTransfer();
     }
     else if (s_active)
     {
-        /* Self-heal, part 1: if the fast path above ever misses (lost
-         * s_needArm), re-attempt the arm periodically.
-         * USBD_EP2_StartTransfer() is idempotent - it no-ops unless EP2 is
-         * currently NAKed. */
-        static uint32_t s_heal = 0;
-        if (++s_heal >= 1000u)
-        {
-            s_heal = 0;
-            USBD_EP2_StartTransfer();
-        }
-
-        /* Self-heal, part 2: data-toggle resync. If the host re-opens the
-         * device (browser reload, libusb close/open), the kernel resets its
-         * host-side DATA0/1 toggle WITHOUT any wire traffic, while ours
-         * keeps its value (RB_UC auto-toggle only advances on ACKed
-         * transfers). Every packet is then silently discarded and the
-         * transfer deadlocks with zero ring progress. Detect exactly that
-         * (transfer active + no ring progress for ~1s) and flip our toggle:
-         * the pending/next packet is then (re)sent with the now-matching
-         * PID. A false flip (host merely idle) self-corrects on the next
-         * interval, since the same detector flips back. */
         static uint32_t s_stuck = 0;
-        static uint32_t s_lastTail = 0;
-        if (s_ringTail != s_lastTail)
+        static uint32_t s_lastPos = 0;
+        if (s_genPos != s_lastPos)
         {
-            s_lastTail = s_ringTail;
-            s_stuck = 0; /* packets are being delivered: healthy */
+            s_lastPos = s_genPos;
+            s_stuck = 0;
         }
         else if (++s_stuck >= 100000u)
         {
             s_stuck = 0;
-            R8_UEP2_CTRL ^= RB_UEP_T_TOG;
-            USBD_EP2_StartTransfer(); /* re-arm too, in case EP2 went NAK */
+            R8_U2EP2_TX_CTRL ^= 0x40; /* data-toggle resync, see shim notes */
         }
     }
 }
@@ -249,26 +194,44 @@ void FileXfer_Pump(void)
  * s_needArm). */
 static uint16_t FileXfer_FillCallback(const uint8_t **pptr, uint16_t maxlen)
 {
-    (void)maxlen;
+    uint32_t pos = s_genPos;
+    uint32_t remain = FILEXFER_TOTAL_SIZE - pos;
 
-    if (s_ringHead != s_ringTail)
-    {
-        uint32_t idx = s_ringTail & RING_MASK;
-        *pptr = s_ringData[idx];
-        uint16_t len = s_ringLen[idx];
-        s_ringTail++;
-        return len;
-    }
     *pptr = NULL;
-
-    if (s_genPos >= FILEXFER_TOTAL_SIZE)
+    if (remain == 0)
     {
         return 0; /* end of file: stay NAKed */
     }
 
-    /* Ring underrun: NAK (return 0) and ask the pump to re-arm us. */
-    s_needArm = 1;
-    return 0;
+    if (pos < FILEXFER_BMP_HEADER_LEN)
+    {
+        /* the 54-byte header is its own (short) first packet, so every
+         * later packet is 512-aligned inside a 3072-byte row */
+        uint16_t n = (maxlen < FILEXFER_BMP_HEADER_LEN) ? maxlen : (uint16_t)FILEXFER_BMP_HEADER_LEN;
+        *pptr = s_header;
+        s_genPos += n;
+        return n;
+    }
+
+    {
+        uint32_t pix = pos - FILEXFER_BMP_HEADER_LEN;
+        uint32_t rowLen = FILEXFER_IMG_WIDTH * 3u;
+        uint32_t row = pix / rowLen;
+        uint32_t off = pix % rowLen;
+        const uint8_t *src = ((row / SQ) & 1u) ? s_rowB : s_rowA;
+        uint32_t avail = rowLen - off;
+        if (avail > remain)
+        {
+            avail = remain;
+        }
+        if (avail > maxlen)
+        {
+            avail = maxlen;
+        }
+        *pptr = &src[off];
+        s_genPos += avail;
+        return (uint16_t)avail;
+    }
 }
 
 void FileXfer_Init(void)
