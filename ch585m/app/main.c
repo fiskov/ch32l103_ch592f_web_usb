@@ -23,6 +23,8 @@
 #include "Internal_Flash.h"
 #include "SPI_FLASH.h"
 #include "SW_UDISK.h"
+#include "systick.h"
+#include "shed.h"
 
 /*********************************************************************
  * @fn      DebugInit
@@ -33,10 +35,20 @@
  */
 void DebugInit(void)
 {
+    /* UART0 debug: TX on PB7, RX on PB4. */
     GPIOB_SetBits(GPIO_Pin_7);
     GPIOB_ModeCfg(GPIO_Pin_4, GPIO_ModeIN_PU);
     GPIOB_ModeCfg(GPIO_Pin_7, GPIO_ModeOut_PP_5mA);
     UART0_DefInit();
+}
+
+/* On-board LED on PB17: toggled once per second from the scheduler as a
+ * visible sign of life (plain GPIO blink, no PWM needed for MSC). */
+#define LED_PIN   GPIO_Pin_17
+
+static void LED_BlinkTask(void)
+{
+    GPIOB_InverseBits(LED_PIN);
 }
 
 /*********************************************************************
@@ -50,6 +62,13 @@ int main(void)
 {
     SetSysClock(SYSCLK_FREQ);
     DebugInit();
+
+    GPIOB_SetBits(LED_PIN); /* LED idle high, blink starts after 500 ms */
+    GPIOB_ModeCfg(LED_PIN, GPIO_ModeOut_PP_5mA);
+    SysTick_InitMillis();
+    shed_add("ledblink", LED_BlinkTask, 500, 1 /* repeat */);
+
+    PRINT("LED heartbeat: PB17\r\n");
 
 #if (STORAGE_MEDIUM == MEDIUM_SPI_FLASH)
     PRINT( "USBHS UDisk Demo\r\nStorage Medium: SPI FLASH \r\n" );
@@ -73,6 +92,6 @@ int main(void)
 
     while (1)
     {
-        ;
+        shed_update(SysTick_Millis());
     }
 }
