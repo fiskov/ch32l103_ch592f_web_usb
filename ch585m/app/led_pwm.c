@@ -9,12 +9,12 @@
 #include "led_pwm.h"
 
 /* PB23 is the on-board LED pin (active-low) and TMR0's alternate PWM0 output. */
-#define LED_PORT_PIN        GPIO_Pin_23
+#define LED_PORT_PIN        GPIO_Pin_9
 
-/* TMR0 PWM period in system clocks. 1024 ticks @60MHz ~= 58.6kHz carrier.
- * Multiple of 256 so an 8-bit brightness maps to an integer pulse width. */
-#define LED_PWM_CYCLE       1024u
-#define LED_PWM_SCALE       (LED_PWM_CYCLE / 256u)
+/* TMR0 PWM period in system clocks; 256+1 as in the working
+ * test_585_tmr project on this board. 8-bit brightness maps 1:1. */
+#define LED_PWM_CYCLE       (256u + 1u)
+#define LED_PWM_SCALE       1u
 
 static volatile uint8_t s_brightness = 0;
 
@@ -30,8 +30,8 @@ static void LED_PWM_Apply(void)
 
 void LED_PWM_Init(void)
 {
-    /* PA9 is TMR0/PWM0's default pin; just enable the output driver. */
-    GPIOA_SetBits(LED_PORT_PIN);
+    /* PA9 is TMR0/PWM0's default pin; enable the output driver
+     * (no SetBits first - matching the proven test_585_tmr sequence). */
     GPIOA_ModeCfg(LED_PORT_PIN, GPIO_ModeOut_PP_5mA);
 
     /* Low_Level polarity -> active (low) pulse width = data width, matching the
