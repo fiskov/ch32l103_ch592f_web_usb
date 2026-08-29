@@ -169,7 +169,8 @@ void FileXfer_Pump(void)
         s_active    = 1;
     }
 
-    while ((s_ringHead - s_ringTail) < RING_SLOTS)
+    while ((s_ringHead - s_ringTail) < (RING_SLOTS - 1)) /* keep one slot of
+    * headroom: a slot handed to DMA stays unread until IN-complete */
     {
         uint32_t idx;
         uint16_t len;
@@ -240,18 +241,19 @@ void FileXfer_Pump(void)
  * the endpoint - the host retries while the main-loop pump refills and
  * re-arms from FileXfer_Pump(). No generation happens here (see
  * s_needArm). */
-static uint16_t FileXfer_FillCallback(uint8_t *buf, uint16_t maxlen)
+static uint16_t FileXfer_FillCallback(const uint8_t **pptr, uint16_t maxlen)
 {
     (void)maxlen;
 
     if (s_ringHead != s_ringTail)
     {
         uint32_t idx = s_ringTail & RING_MASK;
+        *pptr = s_ringData[idx];
         uint16_t len = s_ringLen[idx];
-        memcpy(buf, s_ringData[idx], len);
         s_ringTail++;
         return len;
     }
+    *pptr = NULL;
 
     if (s_genPos >= FILEXFER_TOTAL_SIZE)
     {

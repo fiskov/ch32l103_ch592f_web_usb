@@ -154,7 +154,7 @@ extern uint8_t USBHS_Endp_DataUp( uint8_t endp, uint8_t *pbuf, uint16_t len, uin
 #include <stdint.h>
 volatile extern uint8_t USBD_DevEnumStatus;
 volatile extern uint8_t USBD_EP1_TxBusy;
-typedef uint16_t (*USBD_EP2_FillCallback)(uint8_t *buf, uint16_t maxlen);
+typedef uint16_t (*USBD_EP2_FillCallback)(const uint8_t **pptr, uint16_t maxlen);
 void    USBD_Device_Init(void);
 uint8_t USBD_EP1_SendData(const uint8_t *pbuf, uint8_t len);
 void    USBD_EP2_SetFillCallback(USBD_EP2_FillCallback cb);

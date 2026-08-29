@@ -904,10 +904,13 @@ void USBD_EP2_StartTransfer( void )
     PFIC_DisableIRQ( USB2_DEVICE_IRQn );
     if( ( USBHS_Endp_Busy[ DEF_UEP2 ] & DEF_UEP_BUSY ) == 0 )
     {
-        uint16_t n = s_ep2FillCb( USBHS_EP2_Tx_Buf, DEF_USBD_UEP2_SIZE );
-        if( n > 0 )
+        const uint8_t *p = NULL;
+        uint16_t n = s_ep2FillCb( &p, DEF_USBD_UEP2_SIZE );
+        if( ( n > 0 ) && ( p != NULL ) )
         {
+            /* zero-copy: point the endpoint DMA straight at the source */
             USBHS_Endp_Busy[ DEF_UEP2 ] |= DEF_UEP_BUSY;
+            R32_U2EP2_TX_DMA = (uint32_t)p;
             R16_U2EP2_T_LEN = n;
             R8_U2EP2_TX_CTRL = ( R8_U2EP2_TX_CTRL & ~USBHS_UEP_T_RES_MASK ) | USBHS_UEP_T_RES_ACK;
         }

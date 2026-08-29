@@ -24,10 +24,18 @@ Differences from the CH592F original:
 
 ## Measured throughput (same host, same harness)
 
-| Board    | Sustained EP2 bulk-IN, byte-exact |
-|----------|-----------------------------------|
-| CH585M   | ~256 KB/s                         |
-| CH592F   | ~230 KB/s                         |
+| Configuration (CH585M unless noted)          | Sustained EP2 bulk-IN | Data check |
+|-----------------------------------------------|-----------------------|------------|
+| CH592F full-speed, memcpy ring (reference)    | ~230 KB/s             | byte-exact |
+| USBHS high-speed, memcpy ring + per-byte BMP generator | ~256 KB/s    | byte-exact |
+| USBHS + 64 KB pre-generated repeating block (generator bypass experiment, pre in-flight guard) | ~534 KB/s | block check FAILED (arm race) |
+| USBHS + zero-copy DMA (endpoint DMA points straight at the ring slot, one slot of in-flight headroom) | ~327 KB/s | byte-exact |
+
+Notes: the ~256-327 KB/s figures are generator-limited, not bus-limited -
+the 534 KB/s experiment (since reverted) proved the per-byte BMP walk was
+the cap. Next step toward real USBHS numbers: combine zero-copy DMA with
+the pre-generated block (serving straight from the static 64 KB buffer)
+and chain packets inside the IN-complete handler with no NAK gap.
 
 ## Build & flash
 
