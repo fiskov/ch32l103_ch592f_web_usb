@@ -168,8 +168,9 @@ const uint8_t MyLangDescr[] =
 /* Manufacturer String: "CH592F" */
 const uint8_t MyManuInfo[] =
 {
-    0x0E, 0x03,
-    'C', 0, 'H', 0, '5', 0, '9', 0, '2', 0, 'F', 0
+    0x0E,                            // bLength = 2 + 2*6 (UTF-16LE)
+    0x03,                            // bDescriptorType = STRING
+    'C', 0x00, 'H', 0x00, '5', 0x00, '8', 0x00, '5', 0x00, 'M', 0x00
 };
 
 /* Product String: "WinUSB WebUSB LED Demo" */
