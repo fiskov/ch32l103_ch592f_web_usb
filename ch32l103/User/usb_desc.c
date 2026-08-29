@@ -206,16 +206,16 @@ const uint8_t MyMSOS20Descr[] =
 /* WebUSB URL Descriptor (WebUSB spec §4.3.1), returned in response to the   */
 /* GET_URL vendor request { bRequest = WEBUSB_VENDOR_CODE, wIndex = 0x0002 }.*/
 /* Points the browser at the dedicated LED/button control page for this     */
-/* firmware, https://fiskov.github.io/webusb-ch32l103-led/index.html (a     */
+/* firmware, https://fiskov.github.io/webusb-led/index.html (a     */
 /* page in the same fiskov.github.io site as the generic WebUSB Explorer,   */
 /* but wired specifically to this device's SET_LED/GET_LED/button protocol).*/
 const uint8_t MyWebUSBURLDescr[] =
 {
-    0x32,                            // bLength = 3 + 47
+    0x29,                            // bLength = 3 + 38
     0x03,                            // bDescriptorType = WEBUSB_URL_DESCRIPTOR_TYPE
     0x01,                            // bScheme = 1 (https://)
-    /* UTF-8 URL, without the scheme prefix, 47 bytes: */
+    /* UTF-8 URL, without the scheme prefix, 38 bytes: */
     'f','i','s','k','o','v','.','g','i','t','h','u','b','.','i','o','/',
-    'w','e','b','u','s','b','-','c','h','3','2','l','1','0','3','-','l',
-    'e','d','/','i','n','d','e','x','.','h','t','m','l'
+    'w','e','b','u','s','b','-','l','e','d',
+    '/','i','n','d','e','x','.','h','t','m','l'
 };

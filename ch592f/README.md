@@ -11,7 +11,7 @@ that:
   - **[WebUSB](https://wicg.github.io/webusb/#webusb-platform-capability-descriptor)**
     — lets WebUSB-capable browsers fetch a landing-page URL via the
     `GET_URL` vendor request. The landing page URL is currently set to
-    `https://fiskov.github.io/webusb-ch592f-led/index.html` - update
+    `https://fiskov.github.io/webusb-led/index.html` - update
     `MyWebUSBURLDescr` in `app/usb_desc.c` if you move/rename that page.
     (Build/host the actual web page from
     [`fiskov.github.io`](https://github.com/fiskov/fiskov.github.io), not

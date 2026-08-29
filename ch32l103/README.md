@@ -15,7 +15,7 @@ full-speed device that:
     any device by VID/PID — but it's what enables the "open landing page"
     prompt some browsers show when the device is plugged in.) The landing
     page URL is currently set to
-    [`https://fiskov.github.io/webusb-ch32l103-led/index.html`](https://fiskov.github.io/webusb-ch32l103-led/index.html) -
+    [`https://fiskov.github.io/webusb-led/index.html`](https://fiskov.github.io/webusb-led/index.html) -
     update `MyWebUSBURLDescr` in `User/usb_desc.c` if you move/rename that
     page. The page itself is built/hosted from the separate
     [`fiskov.github.io`](https://github.com/fiskov/fiskov.github.io)
@@ -189,6 +189,6 @@ The browser-side WebUSB/WinUSB control page for this firmware is built and
 hosted from the separate
 [`fiskov.github.io`](https://github.com/fiskov/fiskov.github.io) repository
 (not from this repo) at
-`https://fiskov.github.io/webusb-ch32l103-led/index.html`. The sibling
+`https://fiskov.github.io/webusb-led/index.html`. The sibling
 [`../ch592f`](../ch592f) firmware speaks the identical protocol, so the same
 page works for both boards.

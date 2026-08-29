@@ -35,8 +35,8 @@ built and hosted from the separate
 [`fiskov.github.io`](https://github.com/fiskov/fiskov.github.io) repository
 and works with either board, since both speak the same protocol:
 
-- `https://fiskov.github.io/webusb-ch32l103-led/index.html`
-- `https://fiskov.github.io/webusb-ch592f-led/index.html` (or the same page,
+- `https://fiskov.github.io/webusb-led/index.html`
+- `https://fiskov.github.io/webusb-led/index.html` (or the same page,
   since the protocol is identical between boards)
 
 ## Building
