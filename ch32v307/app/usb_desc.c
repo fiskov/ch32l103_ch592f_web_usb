@@ -168,9 +168,9 @@ const uint8_t MyLangDescr[] =
 /* Manufacturer String: "CH592F" */
 const uint8_t MyManuInfo[] =
 {
-    0x0E,                            // bLength = 2 + 2*6 (UTF-16LE)
+    0x12,                            // bLength = 2 + 2*8 (UTF-16LE)
     0x03,                            // bDescriptorType = STRING
-    'C', 0x00, 'H', 0x00, '5', 0x00, '8', 0x00, '5', 0x00, 'M', 0x00
+    'C', 0x00, 'H', 0x00, '3', 0x00, '2', 0x00, 'V', 0x00, '3', 0x00, '0', 0x00, '7', 0x00
 };
 
 /* Product String: "WinUSB WebUSB LED Demo" */
@@ -186,9 +186,9 @@ const uint8_t MyProdInfo[] =
 /* Serial Number String: "CH585M-DEMO-0001" */
 const uint8_t MySerNumInfo[] =
 {
-    0x22,                            // bLength = 2 + 2*16 (UTF-16LE)
+    0x26,                            // bLength = 2 + 2*18 (UTF-16LE)
     0x03,                            // bDescriptorType = STRING
-    'C', 0x00, 'H', 0x00, '5', 0x00, '8', 0x00, '5', 0x00, 'M', 0x00, '-', 0x00, 'D', 0x00, 'E', 0x00, 'M', 0x00, 'O', 0x00, '-', 0x00, '0', 0x00, '0', 0x00, '0', 0x00, '1', 0x00
+    'C', 0x00, 'H', 0x00, '3', 0x00, '2', 0x00, 'V', 0x00, '3', 0x00, '0', 0x00, '7', 0x00, '-', 0x00, 'D', 0x00, 'E', 0x00, 'M', 0x00, 'O', 0x00, '-', 0x00, '0', 0x00, '0', 0x00, '0', 0x00, '1', 0x00
 };
 
 /******************************************************************************/
