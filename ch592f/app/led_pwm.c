@@ -1,26 +1,23 @@
 /********************************** (C) COPYRIGHT *******************************
  * File Name          : led_pwm.c
- * Description        : LED brightness control on PA4 via a software PWM
- *                       driven from the TMR1 interrupt.
+ * Description        : LED brightness control on PB23 via the TMR0 hardware PWM
+ *                       channel.
  *
- *  The on-board LED is wired active-low on PA4 (same pin used by the
- *  original ch592_usbhid firmware, see ../../ch592f original README:
- *  "LED | PA4 (active-low)"). None of CH592's fixed-function PWM4-PWM11
- *  hardware channels are routed to PA4 (see CH592SFR.h bPWM4../bPWM8..
- *  definitions - they live on PA6/PA7/PA12/PA13/PB0/PB1/PB3/PB4), so unlike
- *  the CH32L103 sibling firmware (../../ch32l103/User/led_pwm.c, PB8 =
- *  TIM4_CH3 hardware PWM) brightness here is produced by toggling the pin
- *  in software from a fast, free-running TMR1 interrupt:
+ *  PB23 carries TMR0's PWM output in its alternate mapping (see CH592SFR.h
+ *  RB_PIN_TMR0: 0 = "TMR0/PWM0/CAP0 on PA[9]", 1 = "TMR0_/PWM0_/CAP0_ on
+ *  PB[23]"). PA9 is kept for UART1 TX (debug), so we remap TMR0 to PB23 with
+ *  GPIOPinRemap(ENABLE, RB_PIN_TMR0). Brightness is generated entirely by the
+ *  TMR0 PWM peripheral - no CPU/ISR involvement:
  *
- *  - TMR1 is configured as a free-running timer reloading every
- *    LED_PWM_TICK_CYCLES system clocks (~device Tsys, see TMR1_TimerInit()).
- *  - Each interrupt increments an 8-bit counter (0..255) and drives PA4
- *    according to counter < brightness (inverted for active-low wiring),
- *    producing a standard 8-bit-resolution PWM waveform.
- *  - At SystemCoreClock = 60MHz and a ~468-cycle reload (~7.8us/tick), the
- *    full 256-step cycle repeats at roughly 500Hz - comfortably above the
- *    flicker-fusion threshold - while keeping ISR overhead low (~1 short
- *    interrupt every 7.8us).
+ *  - TMR0_PWMInit(Low_Level, PWM_Times_1) selects the polarity. "Low_Level"
+ *    makes the active (low) pulse width track the programmed data width, which
+ *    matches an active-low LED (higher width = longer low = brighter).
+ *  - TMR0_PWMCycleCfg(LED_PWM_CYCLE) sets the PWM period in system clocks.
+ *    At SystemCoreClock = 60MHz and a 1024-clock cycle this gives a ~58.6kHz
+ *    carrier - comfortably above the flicker-fusion threshold and quiet for
+ *    the LED driver.
+ *  - TMR0_PWMActDataWidth(width) sets the active (on) pulse width; the 8-bit
+ *    brightness value 0..255 is scaled up by LED_PWM_SCALE to fill the cycle.
  *
  *  The public API (0=off, 255=full brightness) matches led_pwm.c on the
  *  CH32L103 sibling firmware exactly, so usbd_winusb.c is identical on
@@ -29,60 +26,62 @@
 
 #include "led_pwm.h"
 
-/* PA4 is the on-board LED pin (active-low), matching the original
- * ch592_usbhid firmware's DebugInit()/LED_SET()/LED_RESET() macros. */
-#define LED_PORT_PIN        GPIO_Pin_4
+/* PB23 is the on-board LED pin (active-low) and TMR0's alternate PWM0 output. */
+#define LED_PORT_PIN        GPIO_Pin_23
 
-/* TMR1 reload value: SystemCoreClock/128000 gives a ~128kHz tick rate, i.e.
- * a ~500Hz 8-bit PWM carrier (128000/256 ~= 500Hz) - flicker-free and low
- * enough overhead for a background LED brightness driver. */
-#define LED_PWM_TICK_HZ      128000u
+/* TMR0 PWM period in system clocks. 1024 ticks @60MHz ~= 58.6kHz carrier.
+ * Multiple of 256 so an 8-bit brightness maps to an integer pulse width. */
+#define LED_PWM_CYCLE       1024u
+#define LED_PWM_SCALE       (LED_PWM_CYCLE / 256u)
 
 static volatile uint8_t s_brightness = 0;
-static volatile uint8_t s_pwmCounter = 0;
 
-void TMR1_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
+/* Heartbeat blink state: enabled at boot as a visible sign of life,
+ * permanently disabled by the first explicit LED_PWM_SetBrightness()
+ * call (i.e. a SET_LED vendor request from the host). */
+static volatile uint8_t s_heartbeat = 1;
 
-static inline void LED_SetPinLevel(uint8_t on)
+static void LED_PWM_Apply(void)
 {
-    /* Active-low: pin low turns the LED on. */
-    if (on)
-    {
-        GPIOA_ResetBits(LED_PORT_PIN);
-    }
-    else
-    {
-        GPIOA_SetBits(LED_PORT_PIN);
-    }
-}
-
-void TMR1_IRQHandler(void)
-{
-    if (TMR1_GetITFlag(TMR0_3_IT_CYC_END))
-    {
-        TMR1_ClearITFlag(TMR0_3_IT_CYC_END);
-
-        LED_SetPinLevel(s_pwmCounter < s_brightness);
-        s_pwmCounter++;
-    }
+    TMR0_PWMActDataWidth((uint32_t)s_brightness * LED_PWM_SCALE);
 }
 
 void LED_PWM_Init(void)
 {
-    GPIOA_ModeCfg(LED_PORT_PIN, GPIO_ModeOut_PP_5mA);
-    LED_SetPinLevel(0);
+    /* Route TMR0/PWM0 to PB23 instead of the default PA9 (PA9 stays on UART1
+     * TX for debug output). */
+    GPIOPinRemap(ENABLE, RB_PIN_TMR0);
 
-    s_brightness = 0;
-    s_pwmCounter = 0;
+    /* Enable the pin's push-pull output driver; TMR0 PWM0_ takes over the pin. */
+    GPIOB_ModeCfg(LED_PORT_PIN, GPIO_ModeOut_PP_5mA);
 
-    TMR1_TimerInit(GetSysClock() / LED_PWM_TICK_HZ);
-    TMR1_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
-    PFIC_EnableIRQ(TMR1_IRQn);
+    /* Low_Level polarity -> active (low) pulse width = data width, matching the
+     * active-low LED. PWM_Times_1: one effective pulse per cycle. */
+    TMR0_PWMInit(Low_Level, PWM_Times_1);
+    TMR0_PWMCycleCfg(LED_PWM_CYCLE);
+
+    s_brightness = 0x7F;
+    LED_PWM_Apply();
+
+    TMR0_PWMEnable();
+    TMR0_Enable();
+}
+
+void LED_PWM_HeartbeatTick(void)
+{
+    if (!s_heartbeat)
+    {
+        return;
+    }
+    s_brightness = (s_brightness == 0) ? 0xFF : 0x00;
+    LED_PWM_Apply();
 }
 
 void LED_PWM_SetBrightness(uint8_t brightness)
 {
     s_brightness = brightness;
+    s_heartbeat = 0;
+    LED_PWM_Apply();
 }
 
 uint8_t LED_PWM_GetBrightness(void)

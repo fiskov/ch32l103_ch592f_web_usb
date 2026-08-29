@@ -13,8 +13,8 @@
  *     .inf file needed, alongside a WebUSB platform capability descriptor.
  *   - Because no kernel driver is required, the same device can also be
  *     opened directly from a browser using the WebUSB API.
- *   - LED brightness on PA4 (software PWM via TMR1, see led_pwm.c) is
- *     controlled via two vendor control requests:
+ *   - LED brightness on PB23 (hardware PWM via remapped TMR0, see led_pwm.c)
+ *     is controlled via two vendor control requests:
  *       SET_LED (bRequest=0x02): wValue = brightness 0..255, no data stage
  *       GET_LED (bRequest=0x03): device returns 1 byte with current value
  *   - A push-button on PB22 - the CH592F's BOOT pin (internal pull-up,
@@ -36,7 +36,8 @@
 /*********************************************************************
  * @fn      DebugInit
  * @brief   UART1 debug output (TX: PA9, RX: PA8), matching the original
- *          ch592_usbhid firmware's debug wiring.
+ *          ch592_usbhid firmware's debug wiring. PA9 stays on UART1 TX; the
+ *          on-board LED uses PB23 (remapped TMR0 PWM, see led_pwm.c).
  * @return  none
  */
 static void DebugInit(void)
@@ -57,11 +58,12 @@ int main(void)
     SetSysClock(CLK_SOURCE_PLL_60MHz);
 
     DebugInit();
-    printf("\nWinUSB/WebUSB LED demo (PA4 software PWM) v%u.%u.%u\n",
+    printf("\nWinUSB/WebUSB LED demo (PB23 TMR0 PWM) v%u.%u.%u\n",
            FW_VERSION_MAJOR, FW_VERSION_MINOR, FW_VERSION_PATCH);
 
     LED_PWM_Init();
     SysTick_InitMillis();
+    shed_add("ledblink", LED_PWM_HeartbeatTick, 500, 1);
 
     USBD_Device_Init();
 
@@ -70,8 +72,8 @@ int main(void)
 
     while (1)
     {
-        /* LED PWM runs autonomously from the TMR1 interrupt and most USB
-         * work happens in the USB interrupt handler; the scheduler drives
+        /* LED PWM runs autonomously from the TMR0 hardware channel and most
+         * USB work happens in the USB interrupt handler; the scheduler drives
          * periodic tasks such as the debounced button poll that sends
          * events over EP1. FileXfer_Pump() keeps the EP2 bulk-transfer
          * packet ring topped up in the background so the USB interrupt
