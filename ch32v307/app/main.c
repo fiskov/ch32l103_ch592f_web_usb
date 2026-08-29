@@ -9,6 +9,7 @@
 
 #include "ch32v30x.h"
 #include "debug.h"
+#include "uart_dma.h"
 #include "ch32v30x_usbhs_device.h"
 #include "usb_desc.h"
 #include "led_pwm.h"
@@ -68,6 +69,7 @@ int main(void)
     /* SystemInit() ran from startup: 144 MHz HSE PLL */
 
     USART_Printf_Init(115200);
+    UartDma_Init();   /* switch printf to non-blocking DMA TX */
     printf("\nWinUSB/WebUSB LED demo (CH32V307) v%u.%u.%u\n",
            FW_VERSION_MAJOR, FW_VERSION_MINOR, FW_VERSION_PATCH);
 

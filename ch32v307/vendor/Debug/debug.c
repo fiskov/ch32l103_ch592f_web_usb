@@ -187,6 +187,7 @@ void SDI_Printf_Enable(void)
  *
  * @return  size: Data length
  */
+#include "../../app/uart_dma.h"
 __attribute__((used)) int _write(int fd, char *buf, int size)
 {
     int i = 0;
@@ -237,8 +238,9 @@ __attribute__((used)) int _write(int fd, char *buf, int size)
         while(USART_GetFlagStatus(USART2, USART_FLAG_TC) == RESET);
         USART_SendData(USART2, *buf++);
 #elif(DEBUG == DEBUG_UART3)
-        while(USART_GetFlagStatus(USART3, USART_FLAG_TC) == RESET);
-        USART_SendData(USART3, *buf++);
+        /* DMA-backed: never blocks the CPU */
+        UartDma_Write(buf, size);
+        return size;
 #endif
     }
 #endif
