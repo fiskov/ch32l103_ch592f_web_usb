@@ -51,11 +51,11 @@ extern "C" {
  */
 typedef enum
 {
-    GPIO_ModeIN_Floating, //¸¡¿ÕÊäÈë
-    GPIO_ModeIN_PU,       //ÉÏÀ­ÊäÈë
-    GPIO_ModeIN_PD,       //ÏÂÀ­ÊäÈë
-    GPIO_ModeOut_PP_5mA,  //ÍÆÍìÊä³ö×î´ó5mA
-    GPIO_ModeOut_PP_20mA, //ÍÆÍìÊä³ö×î´ó20mA
+    GPIO_ModeIN_Floating, //æµ®ç©ºè¾“å…¥
+    GPIO_ModeIN_PU,       //ä¸Šæ‹‰è¾“å…¥
+    GPIO_ModeIN_PD,       //ä¸‹æ‹‰è¾“å…¥
+    GPIO_ModeOut_PP_5mA,  //æ¨æŒ½è¾“å‡ºæœ€å¤§5mA
+    GPIO_ModeOut_PP_20mA, //æ¨æŒ½è¾“å‡ºæœ€å¤§20mA
 
 } GPIOModeTypeDef;
 
@@ -64,169 +64,169 @@ typedef enum
  */
 typedef enum
 {
-    GPIO_ITMode_LowLevel,  //µÍµçÆ½´¥·¢
-    GPIO_ITMode_HighLevel, //¸ßµçÆ½´¥·¢
-    GPIO_ITMode_FallEdge,  //ÏÂ½µÑØ´¥·¢
-    GPIO_ITMode_RiseEdge,  //ÉÏÉıÑØ´¥·¢
+    GPIO_ITMode_LowLevel,  //ä½ç”µå¹³è§¦å‘
+    GPIO_ITMode_HighLevel, //é«˜ç”µå¹³è§¦å‘
+    GPIO_ITMode_FallEdge,  //ä¸‹é™æ²¿è§¦å‘
+    GPIO_ITMode_RiseEdge,  //ä¸Šå‡æ²¿è§¦å‘
 
 } GPIOITModeTpDef;
 
 /**
- * @brief   GPIOA¶Ë¿ÚÒı½ÅÄ£Ê½ÅäÖÃ
+ * @brief   GPIOAç«¯å£å¼•è„šæ¨¡å¼é…ç½®
  *
- * @param   pin     - PA4-PA15,¶ÔÓ¦Ğ¾Æ¬12¸öGPIOÒı½Å
- * @param   mode    - ÊäÈëÊä³öÀàĞÍ
+ * @param   pin     - PA4-PA15,å¯¹åº”èŠ¯ç‰‡12ä¸ªGPIOå¼•è„š
+ * @param   mode    - è¾“å…¥è¾“å‡ºç±»å‹
  */
 void GPIOA_ModeCfg(uint32_t pin, GPIOModeTypeDef mode);
 
 /**
- * @brief   GPIOB¶Ë¿ÚÒı½ÅÄ£Ê½ÅäÖÃ
+ * @brief   GPIOBç«¯å£å¼•è„šæ¨¡å¼é…ç½®
  *
- * @param   pin     - PB0,PB4,PB6-PB7,PB10-PB15,PB22-PB23,¶ÔÓ¦Ğ¾Æ¬12¸öGPIOÒı½Å
- * @param   mode    - ÊäÈëÊä³öÀàĞÍ
+ * @param   pin     - PB0,PB4,PB6-PB7,PB10-PB15,PB22-PB23,å¯¹åº”èŠ¯ç‰‡12ä¸ªGPIOå¼•è„š
+ * @param   mode    - è¾“å…¥è¾“å‡ºç±»å‹
  */
 void GPIOB_ModeCfg(uint32_t pin, GPIOModeTypeDef mode);
 
 /**
- * @brief   GPIOA¶Ë¿ÚÒı½ÅÊä³öÖÃµÍ
+ * @brief   GPIOAç«¯å£å¼•è„šè¾“å‡ºç½®ä½
  *
- * @param   pin     - PA4-PA15,¶ÔÓ¦Ğ¾Æ¬12¸öGPIOÒı½Å
+ * @param   pin     - PA4-PA15,å¯¹åº”èŠ¯ç‰‡12ä¸ªGPIOå¼•è„š
  */
 #define GPIOA_ResetBits(pin)      (R32_PA_CLR |= pin)
 
 /**
- * @brief   GPIOA¶Ë¿ÚÒı½ÅÊä³öÖÃ¸ß
+ * @brief   GPIOAç«¯å£å¼•è„šè¾“å‡ºç½®é«˜
  *
- * @param   pin     - PA4-PA15,¶ÔÓ¦Ğ¾Æ¬12¸öGPIOÒı½Å
+ * @param   pin     - PA4-PA15,å¯¹åº”èŠ¯ç‰‡12ä¸ªGPIOå¼•è„š
  */
 #define GPIOA_SetBits(pin)        (R32_PA_OUT |= pin)
 
 /**
- * @brief   GPIOB¶Ë¿ÚÒı½ÅÊä³öÖÃµÍ
+ * @brief   GPIOBç«¯å£å¼•è„šè¾“å‡ºç½®ä½
  *
- * @param   pin     - PB0,PB4,PB6-PB7,PB10-PB15,PB22-PB23,¶ÔÓ¦Ğ¾Æ¬12¸öGPIOÒı½Å
+ * @param   pin     - PB0,PB4,PB6-PB7,PB10-PB15,PB22-PB23,å¯¹åº”èŠ¯ç‰‡12ä¸ªGPIOå¼•è„š
  */
 #define GPIOB_ResetBits(pin)      (R32_PB_CLR |= pin)
 
 /**
- * @brief   GPIOB¶Ë¿ÚÒı½ÅÊä³öÖÃ¸ß
+ * @brief   GPIOBç«¯å£å¼•è„šè¾“å‡ºç½®é«˜
  *
- * @param   pin     - PB0,PB4,PB6-PB7,PB10-PB15,PB22-PB23,¶ÔÓ¦Ğ¾Æ¬12¸öGPIOÒı½Å
+ * @param   pin     - PB0,PB4,PB6-PB7,PB10-PB15,PB22-PB23,å¯¹åº”èŠ¯ç‰‡12ä¸ªGPIOå¼•è„š
  */
 #define GPIOB_SetBits(pin)        (R32_PB_OUT |= pin)
 
 /**
- * @brief   GPIOA¶Ë¿ÚÒı½ÅÊä³öµçÆ½·­×ª
+ * @brief   GPIOAç«¯å£å¼•è„šè¾“å‡ºç”µå¹³ç¿»è½¬
  *
- * @param   pin     - PA4-PA15,¶ÔÓ¦Ğ¾Æ¬12¸öGPIOÒı½Å
+ * @param   pin     - PA4-PA15,å¯¹åº”èŠ¯ç‰‡12ä¸ªGPIOå¼•è„š
  */
 #define GPIOA_InverseBits(pin)    (R32_PA_OUT ^= pin)
 
 /**
- * @brief   GPIOB¶Ë¿ÚÒı½ÅÊä³öµçÆ½·­×ª
+ * @brief   GPIOBç«¯å£å¼•è„šè¾“å‡ºç”µå¹³ç¿»è½¬
  *
- * @param   pin     - PB0,PB4,PB6-PB7,PB10-PB15,PB22-PB23,¶ÔÓ¦Ğ¾Æ¬12¸öGPIOÒı½Å
+ * @param   pin     - PB0,PB4,PB6-PB7,PB10-PB15,PB22-PB23,å¯¹åº”èŠ¯ç‰‡12ä¸ªGPIOå¼•è„š
  */
 #define GPIOB_InverseBits(pin)    (R32_PB_OUT ^= pin)
 
 /**
- * @brief   GPIOA¶Ë¿Ú32Î»Êı¾İ·µ»Ø£¬µÍ16Î»ÓĞĞ§
+ * @brief   GPIOAç«¯å£32ä½æ•°æ®è¿”å›ï¼Œä½16ä½æœ‰æ•ˆ
  *
- * @return  GPIOA¶Ë¿Ú32Î»Êı¾İ
+ * @return  GPIOAç«¯å£32ä½æ•°æ®
  */
 #define GPIOA_ReadPort()          (R32_PA_PIN)
 
 /**
- * @brief   GPIOB¶Ë¿Ú32Î»Êı¾İ·µ»Ø£¬µÍ24Î»ÓĞĞ§
+ * @brief   GPIOBç«¯å£32ä½æ•°æ®è¿”å›ï¼Œä½24ä½æœ‰æ•ˆ
  *
- * @return  GPIOB¶Ë¿Ú32Î»Êı¾İ
+ * @return  GPIOBç«¯å£32ä½æ•°æ®
  */
 #define GPIOB_ReadPort()          (R32_PB_PIN)
 
 /**
- * @brief   GPIOA¶Ë¿ÚÒı½Å×´Ì¬£¬0-Òı½ÅµÍµçÆ½£¬(!0)-Òı½Å¸ßµçÆ½
+ * @brief   GPIOAç«¯å£å¼•è„šçŠ¶æ€ï¼Œ0-å¼•è„šä½ç”µå¹³ï¼Œ(!0)-å¼•è„šé«˜ç”µå¹³
  *
- * @param   pin     - PA4-PA15,¶ÔÓ¦Ğ¾Æ¬12¸öGPIOÒı½Å
+ * @param   pin     - PA4-PA15,å¯¹åº”èŠ¯ç‰‡12ä¸ªGPIOå¼•è„š
  *
- * @return  GPIOA¶Ë¿ÚÒı½Å×´Ì¬
+ * @return  GPIOAç«¯å£å¼•è„šçŠ¶æ€
  */
 #define GPIOA_ReadPortPin(pin)    (R32_PA_PIN & (pin))
 
 /**
- * @brief   GPIOB¶Ë¿ÚÒı½Å×´Ì¬£¬0-Òı½ÅµÍµçÆ½£¬(!0)-Òı½Å¸ßµçÆ½
+ * @brief   GPIOBç«¯å£å¼•è„šçŠ¶æ€ï¼Œ0-å¼•è„šä½ç”µå¹³ï¼Œ(!0)-å¼•è„šé«˜ç”µå¹³
  *
- * @param   pin     - PB0,PB4,PB6-PB7,PB10-PB15,PB22-PB23,¶ÔÓ¦Ğ¾Æ¬12¸öGPIOÒı½Å
+ * @param   pin     - PB0,PB4,PB6-PB7,PB10-PB15,PB22-PB23,å¯¹åº”èŠ¯ç‰‡12ä¸ªGPIOå¼•è„š
  *
- * @return  GPIOB¶Ë¿ÚÒı½Å×´Ì¬
+ * @return  GPIOBç«¯å£å¼•è„šçŠ¶æ€
  */
 #define GPIOB_ReadPortPin(pin)    (R32_PB_PIN & (pin))
 
 /**
- * @brief   GPIOAÒı½ÅÖĞ¶ÏÄ£Ê½ÅäÖÃ
+ * @brief   GPIOAå¼•è„šä¸­æ–­æ¨¡å¼é…ç½®
  *
- * @param   pin     - PA4-PA15,¶ÔÓ¦Ğ¾Æ¬12¸öGPIOÒı½Å
- * @param   mode    - ´¥·¢ÀàĞÍ
+ * @param   pin     - PA4-PA15,å¯¹åº”èŠ¯ç‰‡12ä¸ªGPIOå¼•è„š
+ * @param   mode    - è§¦å‘ç±»å‹
  */
 void GPIOA_ITModeCfg(uint32_t pin, GPIOITModeTpDef mode);
 
 /**
- * @brief   GPIOBÒı½ÅÖĞ¶ÏÄ£Ê½ÅäÖÃ
+ * @brief   GPIOBå¼•è„šä¸­æ–­æ¨¡å¼é…ç½®
  *
- * @param   pin     - PB0,PB4,PB6-PB7,PB10-PB15,PB22-PB23,¶ÔÓ¦Ğ¾Æ¬12¸öGPIOÒı½Å
- * @param   mode    - ´¥·¢ÀàĞÍ
+ * @param   pin     - PB0,PB4,PB6-PB7,PB10-PB15,PB22-PB23,å¯¹åº”èŠ¯ç‰‡12ä¸ªGPIOå¼•è„š
+ * @param   mode    - è§¦å‘ç±»å‹
  */
 void GPIOB_ITModeCfg(uint32_t pin, GPIOITModeTpDef mode);
 
 /**
- * @brief   ¶ÁÈ¡GPIOA¶Ë¿ÚÖĞ¶Ï±êÖ¾×´Ì¬
+ * @brief   è¯»å–GPIOAç«¯å£ä¸­æ–­æ ‡å¿—çŠ¶æ€
  *
- * @return  GPIOA¶Ë¿ÚÖĞ¶Ï±êÖ¾×´Ì¬
+ * @return  GPIOAç«¯å£ä¸­æ–­æ ‡å¿—çŠ¶æ€
  */
 #define GPIOA_ReadITFlagPort()       (R16_PA_INT_IF)
 
 /**
- * @brief   ¶ÁÈ¡GPIOB¶Ë¿ÚÖĞ¶Ï±êÖ¾×´Ì¬
+ * @brief   è¯»å–GPIOBç«¯å£ä¸­æ–­æ ‡å¿—çŠ¶æ€
  *
- * @return  GPIOB¶Ë¿ÚÖĞ¶Ï±êÖ¾×´Ì¬
+ * @return  GPIOBç«¯å£ä¸­æ–­æ ‡å¿—çŠ¶æ€
  */
 #define GPIOB_ReadITFlagPort()       ((R16_PB_INT_IF & (~((GPIO_Pin_22 | GPIO_Pin_23) >> 14))) | ((R16_PB_INT_IF << 14) & (GPIO_Pin_22 | GPIO_Pin_23)))
 
 /**
- * @brief   ¶ÁÈ¡GPIOA¶Ë¿ÚÒı½ÅÖĞ¶Ï±êÖ¾×´Ì¬
+ * @brief   è¯»å–GPIOAç«¯å£å¼•è„šä¸­æ–­æ ‡å¿—çŠ¶æ€
  *
- * @param   pin     - PA4-PA15,¶ÔÓ¦Ğ¾Æ¬12¸öGPIOÒı½Å
+ * @param   pin     - PA4-PA15,å¯¹åº”èŠ¯ç‰‡12ä¸ªGPIOå¼•è„š
  *
- * @return  GPIOA¶Ë¿ÚÒı½ÅÖĞ¶Ï±êÖ¾×´Ì¬
+ * @return  GPIOAç«¯å£å¼•è„šä¸­æ–­æ ‡å¿—çŠ¶æ€
  */
 #define GPIOA_ReadITFlagBit(pin)     (R16_PA_INT_IF & (pin))
 
 /**
- * @brief   ¶ÁÈ¡GPIOB¶Ë¿ÚÒı½ÅÖĞ¶Ï±êÖ¾×´Ì¬
+ * @brief   è¯»å–GPIOBç«¯å£å¼•è„šä¸­æ–­æ ‡å¿—çŠ¶æ€
  *
- * @param   pin     - PB0,PB4,PB6-PB7,PB10-PB15,PB22-PB23,¶ÔÓ¦Ğ¾Æ¬12¸öGPIOÒı½Å
+ * @param   pin     - PB0,PB4,PB6-PB7,PB10-PB15,PB22-PB23,å¯¹åº”èŠ¯ç‰‡12ä¸ªGPIOå¼•è„š
  *
- * @return  GPIOB¶Ë¿ÚÒı½ÅÖĞ¶Ï±êÖ¾×´Ì¬
+ * @return  GPIOBç«¯å£å¼•è„šä¸­æ–­æ ‡å¿—çŠ¶æ€
  */
 #define GPIOB_ReadITFlagBit(pin)     (R16_PB_INT_IF & ((pin) | (((pin) & (GPIO_Pin_22 | GPIO_Pin_23)) >> 14)))
 
 /**
- * @brief   Çå³ıGPIOA¶Ë¿ÚÒı½ÅÖĞ¶Ï±êÖ¾×´Ì¬
+ * @brief   æ¸…é™¤GPIOAç«¯å£å¼•è„šä¸­æ–­æ ‡å¿—çŠ¶æ€
  *
- * @param   pin     - PA4-PA15,¶ÔÓ¦Ğ¾Æ¬12¸öGPIOÒı½Å
+ * @param   pin     - PA4-PA15,å¯¹åº”èŠ¯ç‰‡12ä¸ªGPIOå¼•è„š
  */
 #define GPIOA_ClearITFlagBit(pin)    (R16_PA_INT_IF = pin)
 
 /**
- * @brief   Çå³ıGPIOB¶Ë¿ÚÒı½ÅÖĞ¶Ï±êÖ¾×´Ì¬
+ * @brief   æ¸…é™¤GPIOBç«¯å£å¼•è„šä¸­æ–­æ ‡å¿—çŠ¶æ€
  *
- * @param   pin     - PB0,PB4,PB6-PB7,PB10-PB15,PB22-PB23,¶ÔÓ¦Ğ¾Æ¬12¸öGPIOÒı½Å
+ * @param   pin     - PB0,PB4,PB6-PB7,PB10-PB15,PB22-PB23,å¯¹åº”èŠ¯ç‰‡12ä¸ªGPIOå¼•è„š
  */
 #define GPIOB_ClearITFlagBit(pin)    (R16_PB_INT_IF = ((pin) | (((pin) & (GPIO_Pin_22 | GPIO_Pin_23)) >> 14)))
 
 /**
- * @brief   ÍâÉè¹¦ÄÜÒı½ÅÓ³Éä
+ * @brief   å¤–è®¾åŠŸèƒ½å¼•è„šæ˜ å°„
  *
- * @param   s       - ÊÇ·ñÊ¹ÄÜÓ³Éä
+ * @param   s       - æ˜¯å¦ä½¿èƒ½æ˜ å°„
  * @param   perph   - RB_RF_ANT_SW_EN -  RF antenna switch control output on PA4/PA5/PA12/PA13/PA14/PA15
  *                    RB_PIN_MODEM  -  MODEM: PA6/PA7 -> PB12/PB13
  *                    RB_PIN_PWMX   -  PWMX: PA12/PA13 -> PA6/PA7
@@ -241,11 +241,11 @@ void GPIOB_ITModeCfg(uint32_t pin, GPIOITModeTpDef mode);
 void GPIOPinRemap(FunctionalState s, uint16_t perph);
 
 /**
- * @brief   Ä£ÄâÍâÉèGPIOÒı½Å¹¦ÄÜ¿ØÖÆ
+ * @brief   æ¨¡æ‹Ÿå¤–è®¾GPIOå¼•è„šåŠŸèƒ½æ§åˆ¶
  *
- * @param   s       - ÊÇ·ñÆôÓÃÄ£ÄâÍâÉè¹¦ÄÜ
- * @param   perph   - RB_PIN_USB_DP_PU  - USB UD+Òı½ÅÄÚ²¿ÉÏÀ­µç×è
- *                    RB_PIN_USB_IE     - USB Òı½Å
+ * @param   s       - æ˜¯å¦å¯ç”¨æ¨¡æ‹Ÿå¤–è®¾åŠŸèƒ½
+ * @param   perph   - RB_PIN_USB_DP_PU  - USB UD+å¼•è„šå†…éƒ¨ä¸Šæ‹‰ç”µé˜»
+ *                    RB_PIN_USB_IE     - USB å¼•è„š
  */
 void GPIOAGPPCfg(FunctionalState s, uint16_t perph);
 

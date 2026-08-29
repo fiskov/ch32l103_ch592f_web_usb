@@ -9,7 +9,7 @@
 #ifndef APP_SHED_H_
 #define APP_SHED_H_
 
-#include "CH59x_common.h"
+#include <stdint.h>
 
 /* Schedules cb() to run after period_ms milliseconds; if is_repeat is
  * non-zero, cb() is re-armed automatically every period_ms afterwards.
@@ -21,7 +21,9 @@ int shed_add(const char *name, void (*cb)(void), uint32_t period_ms, uint8_t is_
 int shed_remove(const char *name);
 
 /* Must be called periodically (e.g. once per main-loop iteration); runs
- * any due callbacks. */
-void shed_update(void);
+ * any due callbacks. The current tick count is passed in by the caller so
+ * the scheduler itself has no dependency on any particular time source
+ * (see systick.[ch] for this project's millisecond time base).           */
+void shed_update(uint32_t now_ms);
 
 #endif /* APP_SHED_H_ */

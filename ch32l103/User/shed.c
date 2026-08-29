@@ -6,7 +6,6 @@
  * allowed to reschedule itself under the same name from within itself.
  *******************************************************************************/
 #include "shed.h"
-#include "systick.h"
 #include <string.h>
 
 #define SHED_SIZE        8
@@ -24,6 +23,10 @@ typedef struct
 } shed_task_t;
 
 static shed_task_t s_tasks[SHED_SIZE];
+
+/* Timestamp of the most recent shed_update() call; shed_add() arms new
+ * tasks relative to it, so the module never reads a timer itself. */
+static uint32_t s_now_ms = 0;
 
 int shed_add(const char *name, void (*cb)(void), uint32_t period_ms, uint8_t is_repeat)
 {
@@ -43,7 +46,7 @@ int shed_add(const char *name, void (*cb)(void), uint32_t period_ms, uint8_t is_
                 strncpy(t->name, name, SHED_NAME_SIZE - 1);
             }
             t->period_ms = period_ms;
-            t->due_ms    = SysTick_Millis() + period_ms;
+            t->due_ms    = s_now_ms + period_ms;
             t->is_repeat = is_repeat;
             t->cb        = cb;
             return 0;
@@ -75,9 +78,9 @@ int shed_remove(const char *name)
     return 1; /* not found */
 }
 
-void shed_update(void)
+void shed_update(uint32_t now_ms)
 {
-    uint32_t now = SysTick_Millis();
+    s_now_ms = now_ms;
 
     for (int i = 0; i < SHED_SIZE; i++)
     {
@@ -87,7 +90,7 @@ void shed_update(void)
             continue;
         }
         /* Signed-difference comparison handles uint32_t wraparound safely. */
-        if ((int32_t)(now - t->due_ms) < 0)
+        if ((int32_t)(now_ms - t->due_ms) < 0)
         {
             continue;
         }

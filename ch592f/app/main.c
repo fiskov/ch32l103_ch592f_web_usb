@@ -80,7 +80,7 @@ int main(void)
          * packet ring topped up in the background so the USB interrupt
          * handler only has to memcpy a pre-built packet, maximizing bulk
          * throughput. */
-        shed_update();
+        shed_update(SysTick_Millis());
         FileXfer_Pump();
     }
 }

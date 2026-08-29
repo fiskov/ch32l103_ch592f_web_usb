@@ -64,7 +64,7 @@ int main(void)
          * EP1. FileXfer_Pump() keeps the EP2 bulk-transfer packet ring
          * topped up in the background so the USB interrupt handler only
          * has to memcpy a pre-built packet, maximizing bulk throughput. */
-        shed_update();
+        shed_update(SysTick_Millis());
         FileXfer_Pump();
     }
 }
