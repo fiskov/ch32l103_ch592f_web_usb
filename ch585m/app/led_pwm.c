@@ -2,8 +2,8 @@
  * File Name          : led_pwm.c
  * Description        : LED brightness control on PB23 via the TMR0 hardware PWM
  *                       channel. CH585M port of ../../ch592f/app/led_pwm.c:
- *                       PB23 carries TMR0's alternate PWM0 output on this
- *                       chip too (RB_PIN_TMR0), so the driver is identical -
+ *                       PA9 is TMR0/PWM0's DEFAULT output pin on the CH585, so no
+ *                       pin remap is needed - the driver matches the CH592F one
  *                       8-bit brightness, ~58.6 kHz carrier at 62.4 MHz.
  *******************************************************************************/
 #include "led_pwm.h"
@@ -30,12 +30,9 @@ static void LED_PWM_Apply(void)
 
 void LED_PWM_Init(void)
 {
-    /* Route TMR0/PWM0 to PB23 instead of the default PA9 (PA9 stays on UART1
-     * TX for debug output). */
-    GPIOPinRemap(ENABLE, RB_PIN_TMR0);
-
-    /* Enable the pin's push-pull output driver; TMR0 PWM0_ takes over the pin. */
-    GPIOB_ModeCfg(LED_PORT_PIN, GPIO_ModeOut_PP_5mA);
+    /* PA9 is TMR0/PWM0's default pin; just enable the output driver. */
+    GPIOA_SetBits(LED_PORT_PIN);
+    GPIOA_ModeCfg(LED_PORT_PIN, GPIO_ModeOut_PP_5mA);
 
     /* Low_Level polarity -> active (low) pulse width = data width, matching the
      * active-low LED. PWM_Times_1: one effective pulse per cycle. */

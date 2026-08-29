@@ -50,6 +50,7 @@ volatile uint8_t  USBHS_DevEnumStatus;
 /* Endpoint Buffer */
 __attribute__ ((aligned(4))) uint8_t USBHS_EP0_Buf[ DEF_USBD_UEP0_SIZE ];
 __attribute__ ((aligned(4))) uint8_t USBHS_EP2_Tx_Buf[ 512 ];
+__attribute__ ((aligned(4))) uint8_t USBHS_EP1_Tx_Buf[ 64 ];
 __attribute__ ((aligned(4))) uint8_t TAB_USB_HS_OSC_DESC[ 64 ];
 __attribute__ ((aligned(4))) uint8_t TAB_USB_FS_OSC_DESC[ 64 ];
 
@@ -67,6 +68,7 @@ void UDISK_Up_CSW(void)      {}
 
 /* Endpoint tx busy flag */
 volatile uint8_t  USBHS_Endp_Busy[ DEF_UEP_NUM ];
+volatile uint32_t g_dbgStage = 0; /* breadcrumb: readable via SWIO */
 
 
 
@@ -136,6 +138,7 @@ void USBHS_Device_Endp_Init ( void )
     R32_U2EP2_MAX_LEN = DEF_USBD_UEP2_SIZE;
 
     R32_U2EP0_DMA    = (uint32_t)(uint8_t *)USBHS_EP0_Buf;
+    R32_U2EP1_TX_DMA = (uint32_t)(uint8_t *)USBHS_EP1_Tx_Buf;
     R32_U2EP2_TX_DMA = (uint32_t)(uint8_t *)USBHS_EP2_Tx_Buf;
 
     R16_U2EP0_T_LEN  = 0;
@@ -263,10 +266,12 @@ void USB2_DEVICE_IRQHandler( void )
 
     intflag = R8_USB2_INT_FG;
     intst = R8_USB2_INT_ST;
+    g_dbgStage = 0x100 | intflag; /* reached IRQ with these flags */
 
     if( intflag & USBHS_UDIF_TRANSFER )
     {
         endp_num = intst & USBHS_UDIS_EP_ID_MASK;
+        if( intflag & USBHS_UDIF_BUS_RST ) { g_dbgStage = 0x900; }
         if( !(intst & USBHS_UDIS_EP_DIR )) // SETUP/OUT Transaction
         {
             switch( endp_num )
@@ -283,6 +288,7 @@ void USB2_DEVICE_IRQHandler( void )
 
                         len = 0;
                         errflag = 0;
+                        g_dbgStage = 0x200 | USBHS_SetupReqCode;
                         if ( ( USBHS_SetupReqType & USB_REQ_TYP_MASK ) != USB_REQ_TYP_STANDARD )
                         {
                             /* usb non-standard request processing */
@@ -296,12 +302,16 @@ void USB2_DEVICE_IRQHandler( void )
                                    &pResp, &respLen );
                                if( vres == WINUSB_REQ_HANDLED_DATA )
                                {
-                                   pUSBHS_Descr = ( uint8_t * )pResp;
+                                   /* copy into EP0_Buf here: the IN stage below
+                                    * only continues from pUSBHS_Descr */
                                    if( USBHS_SetupReqLen > respLen )
                                    {
                                        USBHS_SetupReqLen = respLen;
                                    }
-                                   len = respLen;
+                                   pUSBHS_Descr = ( uint8_t * )pResp;
+                                   len = ( USBHS_SetupReqLen >= DEF_USBD_UEP0_SIZE ) ? DEF_USBD_UEP0_SIZE : USBHS_SetupReqLen;
+                                   memcpy( USBHS_EP0_Buf, pUSBHS_Descr, len );
+                                   pUSBHS_Descr += len;
                                }
                                else if( vres == WINUSB_REQ_HANDLED_ACK )
                                {
@@ -736,7 +746,14 @@ void USB2_DEVICE_IRQHandler( void )
                     }
                     if ( ( USBHS_SetupReqType & USB_REQ_TYP_MASK ) != USB_REQ_TYP_STANDARD )
                     {
-                        /* Non-standard request endpoint 0 Data upload */
+                        /* continue multi-packet vendor IN (e.g. MS OS 2.0 set) */
+                        len = USBHS_SetupReqLen >= DEF_USBD_UEP0_SIZE ? DEF_USBD_UEP0_SIZE : USBHS_SetupReqLen;
+                        memcpy( USBHS_EP0_Buf, pUSBHS_Descr, len );
+                        USBHS_SetupReqLen -= len;
+                        pUSBHS_Descr += len;
+                        R16_U2EP0_T_LEN = len;
+                        R8_U2EP0_TX_CTRL ^= USBHS_UEP_T_TOG_DATA1;
+                        R8_U2EP0_TX_CTRL = ( R8_U2EP0_TX_CTRL & ~USBHS_UEP_T_RES_MASK ) | USBHS_UEP_T_RES_ACK;
                     }
                     else
                     {
@@ -862,10 +879,10 @@ uint8_t USBD_EP1_SendData( const uint8_t *pbuf, uint8_t len )
     {
         return 1;
     }
-    if( USBHS_Endp_DataUp( DEF_UEP1, (uint8_t *)pbuf, len, DEF_UEP_CPY_LOAD ) )
-    {
-        return 1;
-    }
+    memcpy( USBHS_EP1_Tx_Buf, pbuf, len );
+    USBHS_Endp_Busy[ DEF_UEP1 ] |= DEF_UEP_BUSY;
+    R16_U2EP1_T_LEN = len;
+    R8_U2EP1_TX_CTRL = ( R8_U2EP1_TX_CTRL & ~USBHS_UEP_T_RES_MASK ) | USBHS_UEP_T_RES_ACK;
     USBD_EP1_TxBusy = 1;
     return 0;
 }
@@ -887,12 +904,12 @@ void USBD_EP2_StartTransfer( void )
     PFIC_DisableIRQ( USB2_DEVICE_IRQn );
     if( ( USBHS_Endp_Busy[ DEF_UEP2 ] & DEF_UEP_BUSY ) == 0 )
     {
-        uint16_t n = s_ep2FillCb( USBHSD_UEP_TXBUF( DEF_UEP2 ), DEF_USBD_UEP2_SIZE );
+        uint16_t n = s_ep2FillCb( USBHS_EP2_Tx_Buf, DEF_USBD_UEP2_SIZE );
         if( n > 0 )
         {
             USBHS_Endp_Busy[ DEF_UEP2 ] |= DEF_UEP_BUSY;
-            USBHSD_UEP_TLEN( DEF_UEP2 ) = n;
-            USBHSD_UEP_TXCTRL( DEF_UEP2 ) = ( USBHSD_UEP_TXCTRL( DEF_UEP2 ) & ~USBHS_UEP_T_RES_MASK ) | USBHS_UEP_T_RES_ACK;
+            R16_U2EP2_T_LEN = n;
+            R8_U2EP2_TX_CTRL = ( R8_U2EP2_TX_CTRL & ~USBHS_UEP_T_RES_MASK ) | USBHS_UEP_T_RES_ACK;
         }
     }
     PFIC_EnableIRQ( USB2_DEVICE_IRQn );
@@ -900,6 +917,9 @@ void USBD_EP2_StartTransfer( void )
 
 void USBD_Device_Init( void )
 {
+    extern volatile uint32_t g_dbgStage;
+    g_dbgStage = 0x10;
     USBHS_Device_Init( ENABLE );
+    g_dbgStage = 0x11;
     PFIC_EnableIRQ( USB2_DEVICE_IRQn );
 }

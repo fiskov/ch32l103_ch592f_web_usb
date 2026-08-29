@@ -7,7 +7,7 @@
  *                       USB2 full-speed device peripheral - so host-side
  *                       throughput numbers are directly comparable.
  *
- *                       LED: PB23 (TMR0 hardware PWM), button: PB22 (input pull-up),
+ *                       LED: PA9 (TMR0 hardware PWM), button: PB22 (input pull-up),
  *                       debug UART: UART0, TX on PB7, RX on PB4.
  *******************************************************************************/
 
@@ -21,29 +21,36 @@
 #include "button.h"
 #include "filexfer.h"
 
-/* UART0 debug output (TX: PB7, RX: PB4), matching the EVT MSC example's
- * debug wiring on the CH585M demoboard. */
+/* UART0 debug output on the remapped pins TX: PA14, RX: PA15, matching
+ * the working test_585_tmr pinout on this demoboard. */
 static void DebugInit(void)
 {
-    GPIOB_SetBits(GPIO_Pin_7);
-    GPIOB_ModeCfg(GPIO_Pin_4, GPIO_ModeIN_PU);
-    GPIOB_ModeCfg(GPIO_Pin_7, GPIO_ModeOut_PP_5mA);
+    GPIOA_SetBits(GPIO_Pin_14);
+    GPIOPinRemap(ENABLE, RB_PIN_UART0);
+    GPIOA_ModeCfg(GPIO_Pin_15, GPIO_ModeIN_PU);
+    GPIOA_ModeCfg(GPIO_Pin_14, GPIO_ModeOut_PP_5mA);
     UART0_DefInit();
 }
 
 int main(void)
 {
+    HSECFG_Capacitance(HSECap_18p); /* board's 32 MHz crystal needs its load caps */
     SetSysClock(SYSCLK_FREQ);
 
     DebugInit();
-    printf("\nWinUSB/WebUSB LED demo (CH585M, PB23 TMR0 PWM) v%u.%u.%u\n",
+    printf("\nWinUSB/WebUSB LED demo (CH585M, PA9 TMR0 PWM) v%u.%u.%u\n",
            FW_VERSION_MAJOR, FW_VERSION_MINOR, FW_VERSION_PATCH);
 
+
+    extern volatile uint32_t g_dbgStage;
+    g_dbgStage = 1;
     LED_PWM_Init();
     SysTick_InitMillis();
+    g_dbgStage = 2;
     sched_add("ledblink", LED_PWM_HeartbeatTick, 50, 1); /* 10 Hz toggle */
 
     USBD_Device_Init();
+    g_dbgStage = 3;
 
     Button_Init();
     FileXfer_Init();

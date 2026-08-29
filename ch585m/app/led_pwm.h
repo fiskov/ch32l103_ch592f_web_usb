@@ -1,9 +1,9 @@
 /********************************** (C) COPYRIGHT *******************************
  * File Name          : led_pwm.h
- * Description        : LED brightness control on PB23 via the TMR0 hardware PWM
+ * Description        : LED brightness control on PA9 via the TMR0 hardware PWM
  *                       channel (alternate mapping). CH585M port of
  *                       ../../ch32l103/User/led_pwm.[ch] (there PB8/TIM4_CH3
- *                       hardware PWM; PB23 on CH585M carries TMR0's alternate
+ *                       hardware PWM; PA9 on CH585M carries TMR0's alternate
  *                       PWM0 output, so brightness is generated directly by the
  *                       TMR0 PWM peripheral with no ISR involvement).
  *******************************************************************************/
@@ -12,7 +12,7 @@
 
 #include "CH58x_common.h"
 
-/* Remaps TMR0/PWM0 to PB23, configures it as a push-pull output and starts the
+/* Remaps TMR0/PWM0 to PA9, configures it as a push-pull output and starts the
  * TMR0 hardware PWM with 0% duty (LED off). */
 void LED_PWM_Init(void);
 

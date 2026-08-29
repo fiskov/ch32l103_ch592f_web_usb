@@ -34,8 +34,8 @@ DEPS=$(CSOURCES:$(TOP)/%.c=$(BDIR)/%.d)
 
 # Arch and target specified
 # - GCC 12, CH32V20x (ch32v208 = D8W, no FPU, xw extension)
-ARCH_FLAGS	:= -march=rv32imc_zba_zbb_zbc_zbs_xw -mabi=ilp32 \
-			-mcmodel=medany -msmall-data-limit=8 -mno-save-restore \
+ARCH_FLAGS	:= -march=rv32imcb_zmmul_zca_zba_zbb_zbc_zbs_xw -mabi=ilp32 \
+			-mcmodel=medany -msmall-data-limit=8 -mno-save-restore -misa-spec=2.2 \
 			-fmessage-length=0 \
 			-fsigned-char
 

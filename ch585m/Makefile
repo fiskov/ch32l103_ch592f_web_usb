@@ -10,7 +10,7 @@ BUILD_DIR       = _build
 LDSCRIPT        = vendor/Ld/Link.ld
 
 # use printf and UART0
-LIB_FLAGS       = DEBUG=1
+LIB_FLAGS       = DEBUG=0
 
 # version == file with number looks like 1015
 VERSION_FILE    = version
