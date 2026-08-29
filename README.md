@@ -6,9 +6,10 @@ one per MCU, speaking the **identical USB protocol** so a single web page
 
 - [`ch32l103/`](ch32l103) — WCH CH32L103 (RISC-V, QingKe V4C core).
   LED on **PB8** (hardware TIM4_CH3 PWM), button on **PA1**.
-- [`ch592f/`](ch592f) — WCH CH592F (RISC-V). LED on **PA4** (software PWM
-  via TMR1 - CH592 has no hardware PWM4-11 channel routed to PA4), button
-  on **PB22** (the chip's BOOT pin).
+- [`ch592f/`](ch592f) — WCH CH592F (RISC-V). LED on **PB23** (TMR0
+  hardware PWM, remapped), button on **PB22** (the chip's BOOT pin).
+- [`ch585m/`](ch585m) — WCH CH585M (RISC-V) **USBHS mass-storage (U-Disk)
+  demo**, ported from the CH585 EVT; internal or SPI-flash backing store.
 
 Both devices:
 
@@ -48,6 +49,7 @@ export PATH="/path/to/RISC-V Embedded GCC15/bin:$PATH"
 
 cd ch32l103 && make -j16   # -> ch32l103/_build/winusb_webusb_led.{elf,hex,bin}
 cd ../ch592f && make -j16  # -> ch592f/_build/app.{elf,hex,bin}
+cd ../ch585m && make -j16  # -> ch585m/_build/app.{elf,hex,bin}
 ```
 
 See [`.vscode/tasks.json`](.vscode/tasks.json) for ready-made VS Code build
