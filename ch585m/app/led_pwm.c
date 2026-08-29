@@ -25,25 +25,25 @@ static volatile uint8_t s_heartbeat = 1;
 
 static void LED_PWM_Apply(void)
 {
-    if (s_brightness == 0)
-    {
-        GPIOA_ResetBits(LED_PORT_PIN);
-    }
-    else
-    {
-        GPIOA_SetBits(LED_PORT_PIN);
-    }
+    TMR0_PWMActDataWidth((uint32_t)s_brightness * LED_PWM_SCALE);
 }
 
 void LED_PWM_Init(void)
 {
-    /* Plain GPIO (same as the proven test_585_tmr blink); the TMR0-PWM
-     * output path on PA9 needs a separate look - brightness is quantized
-     * to off/on for now. */
+    /* PA9 is TMR0/PWM0's default pin; just enable the output driver. */
     GPIOA_SetBits(LED_PORT_PIN);
     GPIOA_ModeCfg(LED_PORT_PIN, GPIO_ModeOut_PP_5mA);
-    s_brightness = 0;
+
+    /* Low_Level polarity -> active (low) pulse width = data width, matching the
+     * active-low LED. PWM_Times_1: one effective pulse per cycle. */
+    TMR0_PWMInit(Low_Level, PWM_Times_1);
+    TMR0_PWMCycleCfg(LED_PWM_CYCLE);
+
+    s_brightness = 0x7F;
     LED_PWM_Apply();
+
+    TMR0_PWMEnable();
+    TMR0_Enable();
 }
 
 void LED_PWM_HeartbeatTick(void)

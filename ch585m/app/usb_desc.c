@@ -182,7 +182,7 @@ const uint8_t MyProdInfo[] =
     'D', 0, 'e', 0, 'm', 0, 'o', 0
 };
 
-/* Serial Number String: "CH592F-DEMO-0001" */
+/* Serial Number String: "CH585M-DEMO-0001" */
 const uint8_t MySerNumInfo[] =
 {
     0x22, 0x03,
