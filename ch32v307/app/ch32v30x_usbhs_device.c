@@ -313,9 +313,17 @@ uint8_t USBHS_Endp_DataUp( uint8_t endp, uint8_t *pbuf, uint16_t len, uint8_t mo
  *
  * @return  none
  */
+extern volatile uint32_t g_isrEntryTick;
+extern volatile uint32_t prof_isr_us;
+extern volatile uint32_t prof_isr_cnt;
+
 void USBHS_IRQHandler( void )
 {
     uint8_t  intflag, intst, errflag;
+    uint32_t isrExit;
+    extern volatile uint32_t Prof_Now_wrapper(void);
+    #define PROF_TMR3_CNT (*(volatile uint16_t *)0x40000424)  /* TIM3 CNT (16-bit) */
+    g_isrEntryTick = PROF_TMR3_CNT;
     uint16_t len;
 
     intflag = USBHSD->INT_FG;
@@ -899,6 +907,10 @@ void USBHS_IRQHandler( void )
         /* other interrupts */
         USBHSD->INT_FG = intflag;
     }
+    /* profiling: measure ISR duration */
+    isrExit = PROF_TMR3_CNT;
+    prof_isr_us += (uint16_t)(isrExit - g_isrEntryTick);
+    prof_isr_cnt++;
 }
 
 /*********************************************************************

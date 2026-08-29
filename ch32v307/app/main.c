@@ -18,6 +18,51 @@
 #include "button.h"
 #include "filexfer.h"
 
+/* ---- CPU utilization measurement (user's WFI + TMR3 design) ----
+ * TMR3 counts at 1 us (144 MHz / 144). The main loop enters WFI;
+ * when an interrupt wakes the CPU, we measure how long we stay
+ * awake (ISR + main-loop work) before sleeping again. Accumulated
+ * awake-vs-elapsed gives true CPU utilization. */
+#include "ch32v30x_tim.h"
+
+#define PROF_TMRTIM     TIM3
+#define PROF_TMRRCC     RCC_APB1Periph_TIM3
+
+static volatile uint32_t prof_idle_us  = 0;  /* time in WFI */
+static volatile uint32_t prof_busy_us  = 0;  /* time awake (ISR + main) */
+volatile uint32_t prof_isr_us   = 0;  /* time in USB ISR only */
+volatile uint32_t prof_isr_cnt  = 0;  /* USB ISR invocation count */
+
+/* called from USBHS_IRQHandler entry/exit */
+volatile uint32_t g_isrEntryTick = 0;
+
+static void Prof_Init(void)
+{
+    TIM_TimeBaseInitTypeDef t = {0};
+    RCC_APB1PeriphClockCmd(PROF_TMRRCC, ENABLE);
+    t.TIM_Prescaler = 144 - 1;        /* 144 MHz -> 1 tick/us */
+    t.TIM_Period = 0xFFFF;             /* free-running 16-bit (wraps 65.5 ms) */
+    t.TIM_ClockDivision = TIM_CKD_DIV1;
+    t.TIM_CounterMode = TIM_CounterMode_Up;
+    TIM_TimeBaseInit(PROF_TMRTIM, &t);
+    TIM_Cmd(PROF_TMRTIM, ENABLE);
+}
+
+static inline uint32_t Prof_Now(void)
+{
+    return PROF_TMRTIM->CNT;  /* 16-bit; deltas are small */
+}
+
+/* diagnostic vendor request 0x0C: returns 5x uint32
+ * [0]=idle_us [1]=busy_us [2]=isr_us [3]=isr_count [4]=elapsed_capture */
+static uint8_t s_profBuf[20];
+const uint8_t *Prof_GetData(void)
+{
+    uint32_t vals[5] = {prof_idle_us, prof_busy_us, prof_isr_us, prof_isr_cnt, Prof_Now()};
+    memcpy(s_profBuf, vals, 20);
+    return s_profBuf;
+}
+
 int main(void)
 {
     /* SystemInit() ran from startup: 144 MHz HSE PLL */
@@ -26,6 +71,7 @@ int main(void)
     printf("\nWinUSB/WebUSB LED demo (CH32V307) v%u.%u.%u\n",
            FW_VERSION_MAJOR, FW_VERSION_MINOR, FW_VERSION_PATCH);
 
+    Prof_Init();
     LED_PWM_Init();
     SysTick_InitMillis();
     sched_add("ledblink", LED_PWM_HeartbeatTick, 50, 1);
@@ -35,9 +81,20 @@ int main(void)
     Button_Init();
     FileXfer_Init();
 
+    printf("main loop: WFI + TMR3 profiling\r\n");
+
     while (1)
     {
+        uint32_t t_sleep = Prof_Now();
+        __asm volatile("nop"); /* WFI disabled for debug */
+        uint32_t t_wake  = Prof_Now();    /* includes ISR time */
+        uint32_t t_done;
+
         sched_update(SysTick_Millis());
         FileXfer_Pump();
+        /* any deferred work done; measure awake time */
+
+        t_done = Prof_Now();
+        prof_busy_us += t_done - t_wake;  /* main-loop spin time */
     }
 }
