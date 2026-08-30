@@ -98,6 +98,17 @@ const uint8_t *Prof_GetData(void)
     return s_profBuf;
 }
 
+/* periodic CPU stats via UART (once per second) */
+extern volatile uint32_t prof_isr_us;
+extern volatile uint32_t prof_isr_cnt;
+extern volatile uint32_t prof_busy_us;
+
+static void CPU_StatsTask(void)
+{
+    printf("cpu: isr=%luus cnt=%lu busy=%luus t=%lu\r\n",
+           prof_isr_us / 60u, prof_isr_cnt, prof_busy_us / 60u, SysTick_Millis());
+}
+
 int main(void)
 {
     SetSysClock(CLK_SOURCE_PLL_60MHz);
@@ -111,6 +122,7 @@ int main(void)
     SysTick_InitMillis();
 
     sched_add("ledblink", LED_PWM_HeartbeatTick, 50, 1); /* 10 Hz toggle */
+    sched_add("cpustat", CPU_StatsTask, 1000, 1);          /* 1 Hz stats */
 
     USBD_Device_Init();
 
