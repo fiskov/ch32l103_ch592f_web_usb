@@ -67,7 +67,7 @@ const uint8_t MyCfgDescr_FS [] =
     /* Configuration Descriptor */
     0x09,                           // bLength
     0x02,                           // bDescriptorType (Configuration)
-    0x20, 0x00,                     // wTotalLength = 9 + 9 + 7 + 7 = 32
+    0x27, 0x00,                     // wTotalLength = 9 + 9 + 7 + 7 + 7 = 39
     0x01,                           // bNumInterfaces
     0x01,                           // bConfigurationValue
     0x00,                           // iConfiguration
@@ -79,7 +79,7 @@ const uint8_t MyCfgDescr_FS [] =
     0x04,                           // bDescriptorType (Interface)
     0x00,                           // bInterfaceNumber
     0x00,                           // bAlternateSetting
-    0x02,                           // bNumEndpoints
+    0x03,                           // bNumEndpoints
     0xFF,                           // bInterfaceClass (vendor specific)
     0xFF,                           // bInterfaceSubClass
     0xFF,                           // bInterfaceProtocol
@@ -92,6 +92,14 @@ const uint8_t MyCfgDescr_FS [] =
     0x03,                           // bmAttributes: Interrupt
     DEF_USBD_UEP1_SIZE, 0x00,       // wMaxPacketSize
     0x0A,                           // bInterval: 10ms polling
+
+    /* Endpoint Descriptor - EP1 OUT, bulk, file-transfer trigger */
+    0x07,                           // bLength
+    0x05,                           // bDescriptorType (Endpoint)
+    0x01,                           // bEndpointAddress: OUT endpoint 1
+    0x02,                           // bmAttributes: Bulk
+    0x40, 0x00,                     // wMaxPacketSize (64, enough for trigger)
+    0x00,                           // bInterval: N/A for bulk
 
     /* Endpoint Descriptor - EP2 IN, bulk, synthetic file download */
     0x07,                           // bLength
@@ -108,7 +116,7 @@ const uint8_t MyCfgDescr_HS[] ={
     /* Configuration Descriptor */
     0x09,                           // bLength
     0x02,                           // bDescriptorType (Configuration)
-    0x20, 0x00,                     // wTotalLength = 9 + 9 + 7 + 7 = 32
+    0x27, 0x00,                     // wTotalLength = 9 + 9 + 7 + 7 + 7 = 39
     0x01,                           // bNumInterfaces
     0x01,                           // bConfigurationValue
     0x00,                           // iConfiguration
@@ -120,7 +128,7 @@ const uint8_t MyCfgDescr_HS[] ={
     0x04,                           // bDescriptorType (Interface)
     0x00,                           // bInterfaceNumber
     0x00,                           // bAlternateSetting
-    0x02,                           // bNumEndpoints
+    0x03,                           // bNumEndpoints
     0xFF,                           // bInterfaceClass (vendor specific)
     0xFF,                           // bInterfaceSubClass
     0xFF,                           // bInterfaceProtocol
@@ -133,6 +141,14 @@ const uint8_t MyCfgDescr_HS[] ={
     0x03,                           // bmAttributes: Interrupt
     DEF_USBD_UEP1_SIZE, 0x00,       // wMaxPacketSize
     0x0A,                           // bInterval: 10ms polling
+
+    /* Endpoint Descriptor - EP1 OUT, bulk, file-transfer trigger */
+    0x07,                           // bLength
+    0x05,                           // bDescriptorType (Endpoint)
+    0x01,                           // bEndpointAddress: OUT endpoint 1
+    0x02,                           // bmAttributes: Bulk
+    0x40, 0x00,                     // wMaxPacketSize (64, enough for trigger)
+    0x00,                           // bInterval: N/A for bulk
 
     /* Endpoint Descriptor - EP2 IN, bulk, synthetic file download */
     0x07,                           // bLength

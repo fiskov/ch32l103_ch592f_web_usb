@@ -143,7 +143,8 @@ void USBHS_RCC_Init( void )
  */
 void USBHS_Device_Endp_Init ( void )
 {
-    USBHSD->ENDP_CONFIG = USBHS_UEP0_T_EN | USBHS_UEP0_R_EN | USBHS_UEP1_T_EN | USBHS_UEP2_T_EN;
+    USBHSD->ENDP_CONFIG = USBHS_UEP0_T_EN | USBHS_UEP0_R_EN | USBHS_UEP1_T_EN |
+                          USBHS_UEP2_T_EN | USBHS_UEP1_R_EN;  /* EP1 OUT = trigger */
 
     USBHSD->UEP0_MAX_LEN  = DEF_USBD_UEP0_SIZE;
     USBHSD->UEP1_MAX_LEN  = DEF_USBD_UEP1_SIZE;
@@ -158,6 +159,7 @@ void USBHS_Device_Endp_Init ( void )
     USBHSD->UEP0_RX_CTRL = USBHS_UEP_R_RES_ACK;
     USBHSD->UEP1_TX_LEN  = 0;
     USBHSD->UEP1_TX_CTRL = USBHS_UEP_T_RES_NAK;
+    USBHSD->UEP1_RX_CTRL = USBHS_UEP_R_RES_ACK;  /* accept triggers */
     USBHSD->UEP2_TX_LEN  = 0;
     USBHSD->UEP2_TX_CTRL = USBHS_UEP_T_RES_NAK;
     USBHSD->BUF_MODE |= USBHSD_UEP_DOUBLE_BUF( DEF_UEP2 ); /* software toggle */
@@ -318,6 +320,8 @@ extern volatile uint32_t g_isrEntryTick;
 extern volatile uint32_t prof_isr_us;
 extern volatile uint32_t prof_isr_cnt;
 
+static USBD_EP2_FillCallback s_ep2FillCb = NULL; /* EP2 data source, used by ISR and EP1 trigger */
+
 void USBHS_IRQHandler( void )
 {
     uint8_t  intflag, intst, errflag;
@@ -406,6 +410,35 @@ void USBHS_IRQHandler( void )
                 break;
 
             /* data-out stage processing */
+            /* EP1 OUT = trigger: host sends 1 byte, we fill EP2 with
+             * the next packet. This is the echo pattern that achieves
+             * 3.8 MB/s: host write→read avoids xHCI NAK-backoff. */
+            if( ( intst & USBHS_UIS_ENDP_MASK ) == DEF_UEP1 )
+            {
+                /* re-arm EP1 for the next trigger */
+                USBHSD->UEP1_RX_CTRL = (USBHSD->UEP1_RX_CTRL & ~USBHS_UEP_R_RES_MASK) | USBHS_UEP_R_RES_ACK;
+                /* fill EP2 with the next packet (same as echo) */
+                if( s_ep2FillCb != NULL )
+                {
+                    const uint8_t *p = NULL;
+                    uint16_t n = s_ep2FillCb( &p, DEF_USBD_UEP2_SIZE );
+                    if( ( n > 0 ) && ( p != NULL ) )
+                    {
+                        if( ( USBHSD->UEP2_TX_CTRL & USBHS_UEP_T_TOG_DATA1 ) == 0 )
+                        {
+                            USBHSD->UEP2_TX_DMA = (uint32_t)p;
+                        }
+                        else
+                        {
+                            USBHSD->UEP2_RX_DMA = (uint32_t)p;
+                        }
+                        USBHSD->UEP2_TX_LEN = n;
+                        USBHSD->UEP2_TX_CTRL = ( USBHSD->UEP2_TX_CTRL & ~USBHS_UEP_T_RES_MASK ) | USBHS_UEP_T_RES_ACK;
+                    }
+                }
+                USBHSD->INT_FG = USBHS_UIF_TRANSFER;
+                return;
+            }
             case USBHS_UIS_TOKEN_OUT:
                 switch( intst & ( USBHS_UIS_TOKEN_MASK | USBHS_UIS_ENDP_MASK ) )
                 {
@@ -930,7 +963,6 @@ void USBHS_Send_Resume(void)
 /******************************************************************************/
 /* WinUSB/WebUSB demo API shims (same surface as the CH592F/CH585M stacks) */
 volatile uint8_t USBD_EP1_TxBusy = 0;
-static USBD_EP2_FillCallback s_ep2FillCb = NULL;
 
 uint8_t USBD_EP1_SendData( const uint8_t *pbuf, uint8_t len )
 {
