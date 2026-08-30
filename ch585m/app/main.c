@@ -79,6 +79,31 @@ static void CPU_StatsTask(void)
     prof_busy_us = 0;
 }
 
+/* Measure LED blink periods to find the pause */
+static uint32_t s_blinkCount = 0;
+static uint32_t s_lastBlinkMs = 0;
+static uint32_t s_maxBlinkGap = 0;
+static uint32_t s_minBlinkGap = 0xFFFFFFFF;
+
+static void LED_BlinkMeasure(void)
+{
+    uint32_t now = SysTick_Millis();
+    uint32_t gap = now - s_lastBlinkMs;
+    if (gap > s_maxBlinkGap) s_maxBlinkGap = gap;
+    if (gap < s_minBlinkGap && gap > 0) s_minBlinkGap = gap;
+    s_lastBlinkMs = now;
+    s_blinkCount++;
+
+    /* report every 5 seconds */
+    if (s_blinkCount % 100 == 0)  /* 100 blinks × 50ms = 5s */
+    {
+        printf("blink: n=%lu gap=%lu..%lu (exp 50)\r\n",
+               s_blinkCount, s_minBlinkGap, s_maxBlinkGap);
+        s_maxBlinkGap = 0;
+        s_minBlinkGap = 0xFFFFFFFF;
+    }
+}
+
 int main(void)
 {
     HSECFG_Capacitance(HSECap_18p); /* board's 32 MHz crystal needs its load caps */
@@ -95,6 +120,7 @@ int main(void)
     SysTick_InitMillis();
     g_dbgStage = 2;
     sched_add("ledblink", LED_PWM_HeartbeatTick, 50, 1); /* 10 Hz toggle */
+    sched_add("blinkdbg", LED_BlinkMeasure, 50, 1);      /* same period, measures gap */
 
     USBD_Device_Init();
     g_dbgStage = 3;
