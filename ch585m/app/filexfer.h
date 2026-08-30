@@ -18,7 +18,7 @@
  * meaningful throughput measurement. Row size (1024*3 = 3072) is already
  * a multiple of 4, so no BMP row padding is needed. */
 #define FILEXFER_IMG_WIDTH    1024u
-#define FILEXFER_IMG_HEIGHT   2048u
+#define FILEXFER_IMG_HEIGHT   1024u
 #define FILEXFER_BMP_HEADER_LEN 54u
 #define FILEXFER_TOTAL_SIZE   (FILEXFER_BMP_HEADER_LEN + (FILEXFER_IMG_WIDTH * FILEXFER_IMG_HEIGHT * 3u))
 
