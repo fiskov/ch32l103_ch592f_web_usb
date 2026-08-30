@@ -160,6 +160,7 @@ void USBHS_Device_Endp_Init ( void )
     USBHSD->UEP1_TX_CTRL = USBHS_UEP_T_RES_NAK;
     USBHSD->UEP2_TX_LEN  = 0;
     USBHSD->UEP2_TX_CTRL = USBHS_UEP_T_RES_NAK;
+    USBHSD->BUF_MODE |= USBHSD_UEP_DOUBLE_BUF( DEF_UEP2 ); /* software toggle */
 
     for(uint8_t i=0; i<DEF_UEP_NUM; i++ )
     {
@@ -956,10 +957,18 @@ void USBD_EP2_StartTransfer( void )
         uint16_t n = s_ep2FillCb( &p, DEF_USBD_UEP2_SIZE );
         if( ( n > 0 ) && ( p != NULL ) )
         {
-            USBHS_Endp_Busy[ DEF_UEP2 ] |= DEF_UEP_BUSY;
-            USBHSD->UEP2_TX_DMA = (uint32_t)p;
+            /* fill the buffer the current toggle selects */
+            if( ( USBHSD->UEP2_TX_CTRL & USBHS_UEP_T_TOG_DATA1 ) == 0 )
+            {
+                USBHSD->UEP2_TX_DMA = (uint32_t)p;
+            }
+            else
+            {
+                USBHSD->UEP2_RX_DMA = (uint32_t)p;
+            }
             USBHSD->UEP2_TX_LEN = n;
             USBHSD->UEP2_TX_CTRL = ( USBHSD->UEP2_TX_CTRL & ~USBHS_UEP_T_RES_MASK ) | USBHS_UEP_T_RES_ACK;
+            USBHS_Endp_Busy[ DEF_UEP2 ] |= DEF_UEP_BUSY;
         }
     }
     NVIC_EnableIRQ( USBHS_IRQn );
