@@ -180,6 +180,11 @@ void USB_IRQHandler(void)
     uint16_t respLen;
     uint8_t  vendorResult;
 
+    extern volatile uint32_t g_isrEntryTick;
+    extern volatile uint32_t prof_isr_us;
+    extern volatile uint32_t prof_isr_cnt;
+    #define PROF_TMR3_CNT (*(volatile uint32_t *)0x40002C08)
+    g_isrEntryTick = PROF_TMR3_CNT;
     intflag = R8_USB_INT_FG;
 
     if (intflag & RB_UIF_TRANSFER)
@@ -540,4 +545,7 @@ void USB_IRQHandler(void)
     {
         R8_USB_INT_FG = intflag;
     }
+    /* profiling: measure ISR duration in raw 60 MHz ticks */
+    prof_isr_us += (PROF_TMR3_CNT - g_isrEntryTick) & 0x03FFFFFF; /* 26-bit TMR3 wrap */
+    prof_isr_cnt++;
 }

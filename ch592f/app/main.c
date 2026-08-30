@@ -53,6 +53,51 @@ static void DebugInit(void)
  * @brief   Main program.
  * @return  none
  */
+/* ---- CPU utilization measurement (same design as CH32V307) ----
+ * TMR3 counts at 1 us (60 MHz / 60). Vendor request 0x0C returns
+ * [idle_us, busy_us, isr_us, isr_count, timer_now]. */
+#include "CH59x_timer.h"
+
+#define PROF_TMR3_CNT  (*(volatile uint32_t *)0x40002C08)
+
+volatile uint32_t prof_isr_us  = 0;
+volatile uint32_t prof_isr_cnt = 0;
+static volatile uint32_t prof_busy_us = 0;
+
+static void Prof_Init(void)
+{
+    TMR3_TimerInit(0xFFFFFFFF); /* free-running, max period */
+    /* TMR3_TimerInit sets the period; the clock is Fsys (60 MHz).
+     * For 1 us resolution we need prescaler 60, but CH59x TMR3 has
+     * no prescaler - it counts at Fsys directly. So each tick = 1/60 us.
+     * We accumulate raw ticks and convert on read. */
+}
+
+static uint32_t Prof_Now(void) { return PROF_TMR3_CNT; }
+
+/* called from the USB ISR instrumentation in ch592_usbd_device.c */
+volatile uint32_t g_isrEntryTick = 0;
+
+static uint8_t s_profBuf[20];
+const uint8_t *Prof_GetData(void)
+{
+    /* read-and-clear: each vendor request 0x0C returns the values
+     * accumulated since the last read, then resets them */
+    uint32_t vals[5];
+    PFIC_DisableIRQ(USB_IRQn);
+    vals[0] = 0;
+    vals[1] = prof_busy_us / 60u;
+    vals[2] = prof_isr_us / 60u;
+    vals[3] = prof_isr_cnt;
+    vals[4] = Prof_Now() / 60u;
+    prof_busy_us = 0;
+    prof_isr_us = 0;
+    prof_isr_cnt = 0;
+    PFIC_EnableIRQ(USB_IRQn);
+    memcpy(s_profBuf, vals, 20);
+    return s_profBuf;
+}
+
 int main(void)
 {
     SetSysClock(CLK_SOURCE_PLL_60MHz);
@@ -61,6 +106,7 @@ int main(void)
     printf("\nWinUSB/WebUSB LED demo (PB23 TMR0 PWM) v%u.%u.%u\n",
            FW_VERSION_MAJOR, FW_VERSION_MINOR, FW_VERSION_PATCH);
 
+    Prof_Init();
     LED_PWM_Init();
     SysTick_InitMillis();
 
