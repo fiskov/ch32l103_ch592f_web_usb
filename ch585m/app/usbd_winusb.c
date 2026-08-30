@@ -107,10 +107,14 @@ uint8_t WinUSB_ProcessVendorRequest(uint8_t bRequest, uint16_t wValue, uint16_t 
             return WINUSB_REQ_HANDLED_DATA;
         }
 
-        case 0x0C: /* CPU utilization metrics */
+        case 0x0C: /* ISR counters: read directly, no indirection */
         {
-            extern const uint8_t *Prof_GetData(void);
-            *ppDescr = Prof_GetData();
+            extern volatile uint32_t g_ep2Count;
+            extern volatile uint32_t g_allIsrCount;
+            static uint8_t buf[20];
+            uint32_t vals[5] = {g_ep2Count, g_allIsrCount, 0, 0, 0};
+            memcpy(buf, vals, 20);
+            *ppDescr = buf;
             *pLen = 20;
             return WINUSB_REQ_HANDLED_DATA;
         }

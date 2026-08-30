@@ -66,17 +66,13 @@ const uint8_t *Prof_GetData(void)
 /* periodic CPU stats via UART (1 Hz) */
 static void CPU_StatsTask(void)
 {
-    static uint32_t last_isr_us = 0, last_isr_cnt = 0;
-    uint32_t d_isr = (prof_isr_us - last_isr_us) / 78u;
-    uint32_t d_cnt = prof_isr_cnt - last_isr_cnt;
-    printf("cpu: isr=%luus/s cnt=%lu avg=%.1lus busy=%luus t=%lu\r\n",
-           d_isr, d_cnt,
-           d_cnt > 0 ? (uint32_t)(d_isr / d_cnt) : 0,
-           prof_busy_us / 78u,
-           SysTick_Millis());
-    last_isr_us = prof_isr_us;
-    last_isr_cnt = prof_isr_cnt;
-    prof_busy_us = 0;
+    extern volatile uint32_t mainLoops;
+    extern volatile uint32_t maxGap;
+    /* approximate: at 78MHz, TMR3 ticks / 78 = microseconds */
+    printf("cpu: loops=%lu maxGap=%luus(%.1luraw)\r\n",
+           mainLoops, maxGap / 78u, maxGap);
+    mainLoops = 0;
+    maxGap = 0;
 }
 
 /* Measure LED blink periods to find the pause */

@@ -68,6 +68,8 @@ void UDISK_Up_CSW(void)      {}
 
 /* Endpoint tx busy flag */
 volatile uint8_t  USBHS_Endp_Busy[ DEF_UEP_NUM ];
+volatile uint32_t g_ep2Count = 0;    /* EP2 IN completions only */
+volatile uint32_t g_allIsrCount = 0; /* total ISR invocations */
 volatile uint32_t g_dbgStage = 0; /* breadcrumb: readable via SWIO */
 
 
@@ -260,6 +262,7 @@ __INTERRUPT
 __HIGH_CODE
 void USB2_DEVICE_IRQHandler( void )
 {
+    g_allIsrCount++;
     uint8_t  intflag, intst, errflag;
     uint16_t len;
     uint8_t endp_num;
@@ -799,6 +802,7 @@ void USB2_DEVICE_IRQHandler( void )
 
                 /* end-point 2 data in interrupt */
                 case DEF_UEP2:
+                    g_ep2Count++;
                     R8_U2EP2_TX_CTRL &= ~USBHS_UEP_T_DONE;
                     R8_U2EP2_TX_CTRL = (R8_U2EP2_TX_CTRL & ~USBHS_UEP_T_RES_MASK) | USBHS_UEP_T_RES_NAK;
                     R8_U2EP2_TX_CTRL ^= USBHS_UEP_T_TOG_DATA1;
