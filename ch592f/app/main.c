@@ -30,6 +30,7 @@
 #include "version.h"
 #include "systick.h"
 #include "sched.h"
+#include "uart_tx.h"
 #include "button.h"
 #include "filexfer.h"
 
@@ -118,6 +119,7 @@ int main(void)
            FW_VERSION_MAJOR, FW_VERSION_MINOR, FW_VERSION_PATCH);
 
     Prof_Init();
+    UartTx_Init();
     LED_PWM_Init();
     SysTick_InitMillis();
 
