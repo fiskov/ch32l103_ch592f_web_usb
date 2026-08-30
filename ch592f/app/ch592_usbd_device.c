@@ -68,7 +68,7 @@ void USBD_Device_Init(void)
      * (pUSBD_EPn_IN_DataBuf); in TX-only mode the hardware would instead
      * transmit from UEPn_DMA+0, i.e. the unused OUT buffer (all zeros). */
     R8_UEP4_1_MOD = RB_UEP1_RX_EN | RB_UEP1_TX_EN;
-    R8_UEP2_3_MOD = RB_UEP2_RX_EN | RB_UEP2_TX_EN;
+    R8_UEP2_3_MOD = RB_UEP2_TX_EN;
 
     R16_UEP0_DMA = (uint16_t)(uint32_t)s_EP0_Buf;
     R16_UEP1_DMA = (uint16_t)(uint32_t)s_EP1_Buf;
@@ -154,7 +154,9 @@ void USBD_EP2_StartTransfer(void)
         PFIC_EnableIRQ(USB_IRQn);
         return;
     }
-    len = s_ep2FillCb(pUSBD_EP2_IN_DataBuf, DEF_USBD_UEP2_SIZE);
+    { extern const uint8_t *g_ringDmaPtr;
+      len = s_ep2FillCb(pUSBD_EP2_IN_DataBuf, DEF_USBD_UEP2_SIZE);
+      if (g_ringDmaPtr != NULL) R16_UEP2_DMA = (uint16_t)(uint32_t)g_ringDmaPtr; }
     R8_UEP2_T_LEN = (uint8_t)len;
     if (len > 0)
     {
@@ -260,7 +262,12 @@ void USB_IRQHandler(void)
                      * handled by hardware (RB_UEP_AUTO_TOG). */
                     if (s_ep2FillCb != NULL)
                     {
+                        extern const uint8_t *g_ringDmaPtr;
                         uint16_t len2 = s_ep2FillCb(pUSBD_EP2_IN_DataBuf, DEF_USBD_UEP2_SIZE);
+                        if (g_ringDmaPtr != NULL)
+                        {
+                            R16_UEP2_DMA = (uint16_t)(uint32_t)g_ringDmaPtr;
+                        }
                         R8_UEP2_T_LEN = (uint8_t)len2;
                         if (len2 > 0)
                         {

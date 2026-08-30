@@ -36,7 +36,8 @@
 static uint8_t  s_ringData[RING_SLOTS][DEF_USBD_UEP2_SIZE];
 static uint8_t  s_ringLen[RING_SLOTS];
 static volatile uint32_t s_ringHead = 0; /* producer: slots produced so far   */
-static volatile uint32_t s_ringTail = 0; /* consumer: slots consumed so far   */
+static volatile uint32_t s_ringTail = 0;
+const uint8_t *g_ringDmaPtr = NULL; /* zero-copy: set by callback, read by ISR */ /* consumer: slots consumed so far   */
 
 /* Set by the USB ISR when it had to NAK because the ring ran dry; the
  * main-loop pump re-arms EP2 after refilling. Generation must NEVER happen
@@ -158,6 +159,10 @@ void FileXfer_Pump(void)
 {
     if (s_startReq)
     {
+        /* Atomically reset: no USB ISR during the entire sequence */
+        PFIC_DisableIRQ(USB_IRQn);
+        R8_UEP2_CTRL = (R8_UEP2_CTRL & ~MASK_UEP_T_RES) | UEP_T_RES_NAK;
+        g_ringDmaPtr = NULL;
         s_startReq = 0;
         s_genPos    = 0;
         s_col       = 0;
@@ -169,7 +174,7 @@ void FileXfer_Pump(void)
         s_active    = 1;
     }
 
-    while ((s_ringHead - s_ringTail) < RING_SLOTS)
+    while ((s_ringHead - s_ringTail) < (RING_SLOTS - 1)) /* keep 1 slot headroom for zero-copy DMA */
     {
         uint32_t idx;
         uint16_t len;
@@ -244,12 +249,14 @@ static uint16_t FileXfer_FillCallback(uint8_t *buf, uint16_t maxlen)
 {
     (void)maxlen;
 
+    if (s_startReq) { g_ringDmaPtr = NULL; return 0; }
     if (s_ringHead != s_ringTail)
     {
         uint32_t idx = s_ringTail & RING_MASK;
         uint16_t len = s_ringLen[idx];
-        memcpy(buf, s_ringData[idx], len);
+        g_ringDmaPtr = s_ringData[idx]; /* zero-copy: DMA reads from ring */
         s_ringTail++;
+        (void)buf; /* not used: no copy */
         return len;
     }
 
@@ -260,6 +267,7 @@ static uint16_t FileXfer_FillCallback(uint8_t *buf, uint16_t maxlen)
 
     /* Ring underrun: NAK (return 0) and ask the pump to re-arm us. */
     s_needArm = 1;
+    g_ringDmaPtr = NULL;
     return 0;
 }
 
