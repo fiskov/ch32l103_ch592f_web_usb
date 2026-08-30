@@ -107,6 +107,14 @@ uint8_t WinUSB_ProcessVendorRequest(uint8_t bRequest, uint16_t wValue, uint16_t 
             return WINUSB_REQ_HANDLED_DATA;
         }
 
+        case 0x0C: /* CPU utilization metrics */
+        {
+            extern const uint8_t *Prof_GetData(void);
+            *ppDescr = Prof_GetData();
+            *pLen = 20;
+            return WINUSB_REQ_HANDLED_DATA;
+        }
+
         case VENDOR_REQUEST_START_FILE_XFER:
             FileXfer_Start();
             return WINUSB_REQ_HANDLED_ACK;

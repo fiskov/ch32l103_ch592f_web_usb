@@ -32,6 +32,53 @@ static void DebugInit(void)
     UART0_DefInit();
 }
 
+/* ---- CPU utilization measurement (TMR3 at 1 us) ---- */
+#include "CH58x_timer.h"
+#define PROF_TMR3_CNT  (*(volatile uint32_t *)0x40002C08)
+
+volatile uint32_t prof_isr_us  = 0;
+volatile uint32_t prof_isr_cnt = 0;
+volatile uint32_t prof_busy_us = 0;
+
+static void Prof_Init(void)
+{
+    TMR3_TimerInit(0xFFFFFFFF); /* free-running */
+}
+
+static uint8_t s_profBuf[20];
+const uint8_t *Prof_GetData(void)
+{
+    uint32_t vals[5];
+    PFIC_DisableIRQ(USB2_DEVICE_IRQn);
+    vals[0] = 0;
+    vals[1] = prof_busy_us / 78u;
+    vals[2] = prof_isr_us / 78u;  /* 78 MHz ticks to us */
+    vals[3] = prof_isr_cnt;
+    vals[4] = PROF_TMR3_CNT / 78u;
+    prof_busy_us = 0;
+    prof_isr_us = 0;
+    prof_isr_cnt = 0;
+    PFIC_EnableIRQ(USB2_DEVICE_IRQn);
+    memcpy(s_profBuf, vals, 20);
+    return s_profBuf;
+}
+
+/* periodic CPU stats via UART (1 Hz) */
+static void CPU_StatsTask(void)
+{
+    static uint32_t last_isr_us = 0, last_isr_cnt = 0;
+    uint32_t d_isr = (prof_isr_us - last_isr_us) / 78u;
+    uint32_t d_cnt = prof_isr_cnt - last_isr_cnt;
+    printf("cpu: isr=%luus/s cnt=%lu avg=%.1lus busy=%luus t=%lu\r\n",
+           d_isr, d_cnt,
+           d_cnt > 0 ? (uint32_t)(d_isr / d_cnt) : 0,
+           prof_busy_us / 78u,
+           SysTick_Millis());
+    last_isr_us = prof_isr_us;
+    last_isr_cnt = prof_isr_cnt;
+    prof_busy_us = 0;
+}
+
 int main(void)
 {
     HSECFG_Capacitance(HSECap_18p); /* board's 32 MHz crystal needs its load caps */
@@ -60,7 +107,9 @@ int main(void)
         /* All USB work happens in the USB interrupt handler; the scheduler
          * drives the LED heartbeat and the debounced button poll, and
          * FileXfer_Pump() keeps the EP2 bulk ring topped up. */
+        uint32_t t0 = PROF_TMR3_CNT;
         sched_update(SysTick_Millis());
         FileXfer_Pump();
+        prof_busy_us += PROF_TMR3_CNT - t0;
     }
 }
