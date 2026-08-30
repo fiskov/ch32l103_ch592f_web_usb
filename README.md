@@ -39,7 +39,6 @@ synthetic 3 MB gradient BMP over EP2 bulk IN, byte-verified:
 | Board    | USB         | Architecture                  | Throughput | ISR/packet | CPU in ISR |
 |----------|-------------|-------------------------------|-----------:|-----------:|-----------:|
 | CH32L103 | full-speed  | ring buffer + memcpy           | ~230 KB/s | —          | —          |
-| CH592F   | full-speed  | ring buffer + memcpy (stock)   | ~228 KB/s | 60.9 µs    | 22.3%      |
 | CH592F   | full-speed  | **zero-copy DMA from ring**    | **287 KB/s** | **7.8 µs** | **3.6%** |
 | CH585M   | high-speed  | zero-copy rotating rows        | ~1000 KB/s | ~1 µs      | ~2%        |
 | CH32V307 | high-speed  | zero-copy rotating rows        | ~1000 KB/s | 1.2 µs     | 1.9%      |
